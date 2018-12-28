@@ -147,7 +147,7 @@ public class Calculator {
 //			          l_tariff_cur := l_tariff_cur + nvl(round(clear_commissions(i).commission * f_get_coef_rate(clear_commissions(i).cur_id, p_ticket.tariff_cur_id), l_round), 0);
 //			        end if;
 //			      end if;
-					if (c.getCommission().getValueCalcType().equals(CalcType.IN)) {
+					/*if (c.getCommission().getValueCalcType().equals(CalcType.IN)) {
 						switch (c.getCommission().getType()) {
 						case PERCENT:
 							if (c.getCommission().getVat().compareTo(BigDecimal.ZERO) > 0) {
@@ -162,7 +162,7 @@ public class Calculator {
 						default:
 							break;
 						}
-					}
+					}*/
 					
 					int i = price.getCommissions().indexOf(c.getCommission());
 					if (i != -1) {
@@ -256,9 +256,10 @@ public class Calculator {
 		price.setTariff(tariff);
 		List<Commission> commissions = new ArrayList<>();
 		commissions.add(newCommission("C1F", Currency.UAH, ValueType.FIXED, new BigDecimal(5), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT));
+		commissions.add(newCommission("C1P", Currency.UAH, ValueType.FIXED, new BigDecimal(5), CalcType.IN, BigDecimal.ZERO, CalcType.IN));
 		//commissions.add(newCommission("C1P", Currency.EUR, ValueType.PERCENT, new BigDecimal(5), CalcType.IN, BigDecimal.ZERO, CalcType.IN));
 		price.setCommissions(commissions);
-		Price newPrice = calculateResource(price, user, Currency.EUR);
+		Price newPrice = calculateResource(price, user, Currency.UAH);
 		if (newPrice != null)
 			System.out.println(price.getAmount());
 		
