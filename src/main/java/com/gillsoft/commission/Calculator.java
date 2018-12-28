@@ -46,7 +46,16 @@ public class Calculator {
 			price.setAmount(price.getAmount().multiply(BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), saleCurrency))).round(ROUND));
 			price.setCurrency(saleCurrency);
 		} else {
-			price.getCommissions().stream().forEach(c -> clear_commissions.add(new CommissionCalc(c)));
+			price.getCommissions().stream().forEach(c -> {
+				if (c.getCurrency() == null) {
+					c.setCurrency(price.getCurrency());
+				}
+				if (c.getVat() == null) {
+					c.setVat(BigDecimal.ZERO);
+					c.setVatCalcType(CalcType.IN);
+				}
+				clear_commissions.add(new CommissionCalc(c));
+			});
 			// базовый тариф для вычислений (очистка тарифа)
 			// значение очищенного тарифа в валюте тарифа
 			clear_commissions.stream().filter(f -> f.getCommission().getValueCalcType().equals(CalcType.IN)).forEach(c -> {
