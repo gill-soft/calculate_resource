@@ -87,6 +87,7 @@ public class RestClient {
 					rates.stream().filter(f -> f.get("couple_id").equals(couple.get("id"))).forEach(rate -> {
 						String keyTo = String.valueOf(couple.get("currency_to"));
 						BigDecimal coupleRate = new BigDecimal(String.valueOf(rate.get("rate")));
+						BigDecimal.valueOf(0d);
 						ratesMap.get(keyFrom).put(keyTo, coupleRate);
 					});
 				});
