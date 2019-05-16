@@ -13,7 +13,7 @@ public class Config {
 
 	static {
 		try {
-			Resource resource = new ClassPathResource("application.properties");
+			Resource resource = new ClassPathResource("calculate.properties");
 			properties = PropertiesLoaderUtils.loadProperties(resource);
 		} catch (IOException e) {
 			e.printStackTrace();

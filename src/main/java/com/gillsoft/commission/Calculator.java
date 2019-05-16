@@ -11,13 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.springframework.beans.factory.annotation.Autowired;
 
 import com.gillsoft.client.RestClient;
-
 import com.gillsoft.model.CalcType;
 import com.gillsoft.model.Commission;
 import com.gillsoft.model.Currency;
@@ -31,8 +26,7 @@ import com.gillsoft.ms.entity.User;
 
 public class Calculator {
 
-	@Autowired
-	private static RestClient client;
+	private static RestClient client = new RestClient();
 
 	private static final MathContext ROUND = new MathContext(2, RoundingMode.HALF_UP);
 	private static final String DEFAULT_ORGANIZATION = "0";
