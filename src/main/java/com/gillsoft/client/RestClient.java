@@ -2,6 +2,7 @@ package com.gillsoft.client;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -78,7 +79,6 @@ public class RestClient {
 					rates.stream().filter(f -> f.get("couple_id").equals(couple.get("id"))).forEach(rate -> {
 						String keyTo = String.valueOf(couple.get("currency_to"));
 						BigDecimal coupleRate = new BigDecimal(String.valueOf(rate.get("rate")));
-						BigDecimal.valueOf(0d);
 						ratesMap.get(keyFrom).put(keyTo, coupleRate);
 					});
 				});

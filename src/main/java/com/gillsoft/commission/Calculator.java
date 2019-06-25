@@ -357,7 +357,7 @@ public class Calculator {
 		if (clear_commissions == null || clear_commissions.isEmpty()) {
 			return BigDecimal.ZERO;
 		}
-		double l_commissions_total[] = new double[] {0};
+		double[] l_commissions_total = new double[] {0};
 		clear_commissions.stream().filter(f -> f.getCommission().getValueCalcType().equals(CalcType.OUT)).forEach(
 				c -> l_commissions_total[0] += c.getClearCommission().add(c.getClearCommissionVat()).doubleValue());
 		return BigDecimal.valueOf(l_commissions_total[0]);
@@ -436,6 +436,7 @@ public class Calculator {
 		java.util.Optional<Integer> o = list.stream().filter(f -> f >= 3).findFirst();
 		if (o.isPresent())
 			System.out.println(o.get());
+		if (true) return;
 		
 		Date date = new GregorianCalendar(2019, GregorianCalendar.FEBRUARY, 22, 11, 0).getTime();
 		long l = (date.getTime() - new GregorianCalendar().getTime().getTime()) / 60000;
