@@ -316,7 +316,7 @@ public class Calculator {
 		return BigDecimal.ZERO;
 	}
 	
-	private static Map<String, Map<String, BigDecimal>> getRates(User user) {
+	public static Map<String, Map<String, BigDecimal>> getRates(User user) {
 		Map<String, Map<String, BigDecimal>> rates = new HashMap<>();
 		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
 		fillRates(parent, rates);
@@ -397,7 +397,7 @@ public class Calculator {
 		return BigDecimal.ZERO;
 	}*/
 
-	private static float getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public static float getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
 		if (Objects.equals(currencyFrom, currencyTo)) {
 			return 1f;
 		}
