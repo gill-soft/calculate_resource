@@ -1,8 +1,10 @@
 package com.gillsoft.commission;
 
+import java.io.File;
 import java.math.BigDecimal;
 
 import com.gillsoft.model.Commission;
+import com.gillsoft.model.ReturnCondition;
 
 public class CommissionCalc {
 
@@ -31,17 +33,27 @@ public class CommissionCalc {
 	/**
 	 * сколько удерживаем со сбора
 	 */
-	private BigDecimal detainСommission = BigDecimal.ZERO;
+	private BigDecimal detainCommission = BigDecimal.ZERO;
 
 	/**
 	 * сбор к возврату С НДС
 	 */
-	private BigDecimal returnСommission = BigDecimal.ZERO;
+	private BigDecimal returnCommission = BigDecimal.ZERO;
 
 	/**
 	 * НДС сбора к возврату
 	 */
-	private BigDecimal returnСommissionVat = BigDecimal.ZERO;
+	private BigDecimal returnCommissionVat = BigDecimal.ZERO;
+
+	/**
+	 * Условие возврата по комиссии
+	 */
+	ReturnCondition returnCondition;
+
+	/**
+	 * Процент возврата по текущему условию для данной комиссии
+	 */
+	BigDecimal returnConditionPercent = null;
 	
 	public CommissionCalc(Commission commission) {
 		this.commission = commission;
@@ -57,6 +69,9 @@ public class CommissionCalc {
 	}
 
 	public BigDecimal getClearCommission() {
+		/*if (this.clearCommission != null && returnConditionPercent != null) {
+			return clearCommission.multiply(returnConditionPercent);
+		}*/
 		return clearCommission;
 	}
 
@@ -66,6 +81,9 @@ public class CommissionCalc {
 	}
 
 	public BigDecimal getClearCommissionVat() {
+		/*if (this.clearCommissionVat != null && returnConditionPercent != null) {
+			return clearCommissionVat.multiply(returnConditionPercent);
+		}*/
 		return clearCommissionVat;
 	}
 
@@ -92,31 +110,49 @@ public class CommissionCalc {
 		return this;
 	}
 
-	public BigDecimal getDetainСommission() {
-		return detainСommission;
+	public BigDecimal getDetainCommission() {
+		return detainCommission;
 	}
 
-	public CommissionCalc setDetainСommission(BigDecimal detainСommission) {
-		this.detainСommission = detainСommission;
+	public CommissionCalc setDetainCommission(BigDecimal detainСommission) {
+		this.detainCommission = detainСommission;
 		return this;
 	}
 
-	public BigDecimal getReturnСommission() {
-		return returnСommission;
+	public BigDecimal getReturnCommission() {
+		return returnCommission;
 	}
 
-	public CommissionCalc setReturnСommission(BigDecimal returnСommission) {
-		this.returnСommission = returnСommission;
+	public CommissionCalc setReturnCommission(BigDecimal returnСommission) {
+		this.returnCommission = returnСommission;
 		return this;
 	}
 
-	public BigDecimal getReturnСommissionVat() {
-		return returnСommissionVat;
+	public BigDecimal getReturnCommissionVat() {
+		return returnCommissionVat;
 	}
 
-	public CommissionCalc setReturnСommissionVat(BigDecimal returnСommissionVat) {
-		this.returnСommissionVat = returnСommissionVat;
+	public CommissionCalc setReturnCommissionVat(BigDecimal returnСommissionVat) {
+		this.returnCommissionVat = returnСommissionVat;
 		return this;
+	}
+
+	public ReturnCondition getReturnCondition() {
+		return returnCondition;
+	}
+
+	public CommissionCalc setReturnCondition(ReturnCondition returnCondition) {
+		this.returnCondition = returnCondition;
+		if (returnCondition != null && returnCondition.getReturnPercent() != null) {
+			this.returnConditionPercent = returnCondition.getReturnPercent().divide(new BigDecimal(100));
+		} else {
+			this.returnConditionPercent = BigDecimal.ZERO;
+		}
+		return this;
+	}
+
+	public static void main(String[] args) {
+		Calculator.main(null);
 	}
 
 }
