@@ -325,23 +325,38 @@ public class Calculator {
 		int minutesBeforeDepart = (int)(departureDate.getTime() - currentDate.getTime()) / 60000;
 		// получаем актуальное условие возврата
 		final ReturnCondition returnCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart);
-		BigDecimal resourcePriceCurrencyCoefficient = BigDecimal.ONE;
+		// получаем курсы валют по организации пользователя
+		Map<String, Map<String, BigDecimal>> rates = getRates(user);
+		BigDecimal currencyCoefficient = BigDecimal.ONE;
+		//BigDecimal resourcePriceCurrencyCoefficient = BigDecimal.ONE;
 		// пересчитываем стоимость по возврату перевозчика
 		if (resourcePrice != null && resourcePrice.getCurrency() != null) {
 			if (!resourcePrice.getCurrency().equals(currency)) {
-				// получаем курсы валют по организации пользователя
-				Map<String, Map<String, BigDecimal>> rates = getRates(user);
-				resourcePriceCurrencyCoefficient = BigDecimal.valueOf(getCoeffRate(rates, resourcePrice.getCurrency(), currency));
+				currencyCoefficient = BigDecimal.valueOf(getCoeffRate(rates, resourcePrice.getCurrency(), currency));
 			}
-			returned.setAmount(returned.getAmount().multiply(resourcePriceCurrencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+			returned.setAmount(returned.getAmount().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
 			if (returned.getTariff() != null) {
 				if (returned.getTariff().getValue() != null) {
-					returned.getTariff().setValue(returned.getTariff().getValue().multiply(resourcePriceCurrencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+					returned.getTariff().setValue(returned.getTariff().getValue().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
 				}
 				if (returned.getTariff().getVat() != null) {
-					returned.getTariff().setVat(returned.getTariff().getVat().multiply(resourcePriceCurrencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+					returned.getTariff().setVat(returned.getTariff().getVat().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
 				}
 			}
+			clearTariff[0] = resourcePrice.getTariff().getValue();
+			returned.setCurrency(currency);
+		} else {
+			currencyCoefficient = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
+			price.setAmount(price.getAmount().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+			if (price.getTariff() != null) {
+				if (price.getTariff().getValue() != null) {
+					price.getTariff().setValue(price.getTariff().getValue().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+				}
+				if (price.getTariff().getVat() != null) {
+					price.getTariff().setVat(price.getTariff().getVat().multiply(currencyCoefficient).setScale(2, RoundingMode.HALF_UP));
+				}
+			}
+			clearTariff[0] = price.getTariff().getValue();
 			returned.setCurrency(currency);
 		}
 		//
@@ -443,6 +458,11 @@ public class Calculator {
 			}
 			if (returned.getAmount().compareTo(BigDecimal.ZERO) < 0) {
 				returned.setAmount(BigDecimal.ZERO);
+			}
+			if (returned.getTariff() == null) {
+				returned.setTariff(new Tariff());
+				returned.getTariff().setReturnConditions(Arrays.asList(returnCondition));
+				returned.getTariff().setValue(returnTariff);
 			}
 			return returned;
 		} else {
@@ -701,7 +721,7 @@ public class Calculator {
 		price.getTariff().getReturnConditions().add(createReturnCondition("3", null, 75, 720));
 		price.getTariff().getReturnConditions().add(createReturnCondition("4", null, 100, 1440));*/
 		//newPrice = calculateReturn(price, user, Currency.UAH, null, new GregorianCalendar(2019, GregorianCalendar.FEBRUARY, 22, 15, 0).getTime());
-		newPrice = calculateReturn(price, getResourcePrice(), user, Currency.UAH,
+		newPrice = calculateReturn(price, null /*getResourcePrice()*/, user, Currency.EUR,
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 9, 0).getTime(),
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 15, 0).getTime());
 		if (newPrice != null)
