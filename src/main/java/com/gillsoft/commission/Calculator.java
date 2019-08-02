@@ -362,25 +362,29 @@ public class Calculator {
 		//
 		if (price.getCommissions() != null && !price.getCommissions().isEmpty()) {
 			price.getCommissions().stream().filter(f -> f.getCode() != null).forEach(c -> {
-				if (c.getCurrency() == null) {
-					c.setCurrency(price.getCurrency());
-				}
-				if (c.getVat() == null) {
-					c.setVat(BigDecimal.ZERO);
-					c.setVatCalcType(CalcType.IN);
-				}
-				ReturnCondition commissionReturnCondition = getCommissionReturnCondition(c, returnCondition,
-						minutesBeforeDepart);
-				CommissionCalc commissionCalc = new CommissionCalc(c).setClearCommission(c.getValue())
-						.setClearCommissionVat(c.getVat() != null ? c.getVat() : BigDecimal.ZERO)
-						.setReturnCondition(commissionReturnCondition);
-				returnCommissions.add(commissionCalc);
-				clearTariff[0] = clearTariff[0].add(commissionCalc.getClearCommission());
-				clearTariffVat[0] = clearTariffVat[0].add(commissionCalc.getClearCommissionVat() != null
-						? commissionCalc.getClearCommissionVat() : BigDecimal.ZERO);
-				if (c.getCode() != null) {
-					c.setReturnConditions(Arrays.asList(commissionReturnCondition));
-					returned.getCommissions().add(c);
+				if (resourcePrice != null
+						&& resourcePrice.getCommissions() != null
+						&& resourcePrice.getCommissions().stream().filter(resourceCommission -> Objects.equals(resourceCommission.getCode(), c.getCode())).count() == 0) {
+					if (c.getCurrency() == null) {
+						c.setCurrency(price.getCurrency());
+					}
+					if (c.getVat() == null) {
+						c.setVat(BigDecimal.ZERO);
+						c.setVatCalcType(CalcType.IN);
+					}
+					ReturnCondition commissionReturnCondition = getCommissionReturnCondition(c, returnCondition,
+							minutesBeforeDepart);
+					CommissionCalc commissionCalc = new CommissionCalc(c).setClearCommission(c.getValue())
+							.setClearCommissionVat(c.getVat() != null ? c.getVat() : BigDecimal.ZERO)
+							.setReturnCondition(commissionReturnCondition);
+					returnCommissions.add(commissionCalc);
+					clearTariff[0] = clearTariff[0].add(commissionCalc.getClearCommission());
+					clearTariffVat[0] = clearTariffVat[0].add(commissionCalc.getClearCommissionVat() != null
+							? commissionCalc.getClearCommissionVat() : BigDecimal.ZERO);
+					if (c.getCode() != null) {
+						c.setReturnConditions(Arrays.asList(commissionReturnCondition));
+						returned.getCommissions().add(c);
+					}
 				}
 			});
 		}
@@ -452,7 +456,7 @@ public class Calculator {
 			}
 			// к возврату = <сумма возврата по тарифу> + <сумма возврата по сборам поверх> - <сумма удержаний внутри тарифа> и не меньше 0
 			if (resourcePrice != null) {
-				returned.setAmount(returned.getAmount().add(commissions[0]).subtract(detain[0]));
+				returned.setAmount(returned.getAmount().add(commissions[0]).add(detain[0]));
 			} else {
 				returned.setAmount(returnTariff.add(returnForeignTariff).add(commissions[0]).subtract(detain[0]));
 			}
@@ -688,20 +692,25 @@ public class Calculator {
 		}*/
 
 		Price price = new Price();
-		price.setAmount(new BigDecimal(1000));
+		price.setAmount(new BigDecimal(802));
 		price.setCurrency(Currency.UAH);
 		price.setVat(BigDecimal.ZERO);
 		Tariff tariff = new Tariff();
-		tariff.setValue(new BigDecimal(950));
+		tariff.setValue(new BigDecimal(800));
 		price.setTariff(tariff);
-		List<Commission> commissions = Arrays.asList(newCommission("C1F", Currency.UAH, ValueType.FIXED, new BigDecimal(50), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT));
+		//List<Commission> commissions = Arrays.asList(newCommission("C1F", Currency.UAH, ValueType.FIXED, new BigDecimal(50), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT));
+		List<Commission> commissions = new ArrayList<>(Arrays.asList(newCommission("insurance", Currency.UAH, ValueType.FIXED, new BigDecimal(8), CalcType.IN, BigDecimal.ZERO, CalcType.IN),
+				newCommission("agent", Currency.UAH, ValueType.FIXED, new BigDecimal(120), CalcType.IN, BigDecimal.ZERO, CalcType.IN),
+				newCommission("AGN_MATRIX_15", Currency.UAH, ValueType.FIXED, new BigDecimal(15), CalcType.IN, BigDecimal.ZERO, CalcType.IN),
+				newCommission("C1", Currency.UAH, ValueType.FIXED, new BigDecimal(1), CalcType.IN, BigDecimal.ZERO, CalcType.IN),
+				newCommission("C2", Currency.UAH, ValueType.FIXED, new BigDecimal(2), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT)));
 		//commissions.add(newCommission("C1F", Currency.UAH, ValueType.FIXED, new BigDecimal(50), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT));
 		//commissions.add(newCommission("C1P", Currency.UAH, ValueType.FIXED, new BigDecimal(5), CalcType.IN, BigDecimal.ZERO, CalcType.IN));
 		//commissions.add(newCommission("C1P", Currency.EUR, ValueType.PERCENT, new BigDecimal(5), CalcType.IN, BigDecimal.ZERO, CalcType.IN));
-		commissions.get(0)
+		/*commissions.get(0)
 				.setReturnConditions(Arrays.asList(createReturnCondition("C1F0", null, 10, 60),
-						createReturnCondition("C1F50", null, 50, 720),
-						createReturnCondition("C1F100", null, 100, 1440)));
+						createReturnCondition("C1F50", null, 20, 720),
+						createReturnCondition("C1F100", null, 100, 1440)));*/
 		price.setCommissions(commissions);
 		
 		Price newPrice = null;
@@ -713,7 +722,7 @@ public class Calculator {
 		// return
 		price.getTariff()
 				.setReturnConditions(Arrays.asList(createReturnCondition("1", null, 10, 180),
-						createReturnCondition("2", null, 50, 360),
+						createReturnCondition("2", null, 20, 360),
 						createReturnCondition("3", null, 75, 720),
 						createReturnCondition("4", null, 100, 1440)));
 		/*price.getTariff().getReturnConditions().add(createReturnCondition("1", null, 10, 180));
@@ -721,7 +730,7 @@ public class Calculator {
 		price.getTariff().getReturnConditions().add(createReturnCondition("3", null, 75, 720));
 		price.getTariff().getReturnConditions().add(createReturnCondition("4", null, 100, 1440));*/
 		//newPrice = calculateReturn(price, user, Currency.UAH, null, new GregorianCalendar(2019, GregorianCalendar.FEBRUARY, 22, 15, 0).getTime());
-		newPrice = calculateReturn(price, null /*getResourcePrice()*/, user, Currency.EUR,
+		newPrice = calculateReturn(price, getResourcePrice(), user, Currency.UAH,
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 9, 0).getTime(),
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 15, 0).getTime());
 		if (newPrice != null)
@@ -767,14 +776,14 @@ public class Calculator {
 
 	private static Price getResourcePrice() {
 		Price price = new Price();
-		price.setAmount(new BigDecimal(450));
+		price.setAmount(BigDecimal.valueOf(578));
 		price.setCurrency(Currency.UAH);
 		price.setVat(BigDecimal.ZERO);
 		Tariff tariff = new Tariff();
-		tariff.setValue(new BigDecimal(445));
+		tariff.setValue(BigDecimal.valueOf(481.6667));
 		price.setTariff(tariff);
-		List<Commission> commissions = new ArrayList<>();
-		commissions.add(newCommission(null, Currency.UAH, ValueType.FIXED, BigDecimal.valueOf(5), CalcType.OUT, BigDecimal.ZERO, CalcType.OUT));
+		List<Commission> commissions = new ArrayList<>(Arrays.asList(newCommission("insurance", Currency.UAH, ValueType.FIXED, BigDecimal.valueOf(6.8), CalcType.IN, BigDecimal.ZERO, CalcType.IN),
+				newCommission("agent", Currency.UAH, ValueType.FIXED, BigDecimal.valueOf(0), CalcType.IN, BigDecimal.ZERO, CalcType.IN)));
 		price.setCommissions(commissions);
 		return price;
 	}
