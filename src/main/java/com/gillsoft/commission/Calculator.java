@@ -362,9 +362,10 @@ public class Calculator {
 		//
 		if (price.getCommissions() != null && !price.getCommissions().isEmpty()) {
 			price.getCommissions().stream().filter(f -> f.getCode() != null).forEach(c -> {
-				if (resourcePrice != null
-						&& resourcePrice.getCommissions() != null
-						&& resourcePrice.getCommissions().stream().filter(resourceCommission -> Objects.equals(resourceCommission.getCode(), c.getCode())).count() == 0) {
+				if (resourcePrice == null || (resourcePrice != null && resourcePrice.getCommissions() != null
+						&& resourcePrice.getCommissions().stream()
+								.filter(resourceCommission -> Objects.equals(resourceCommission.getCode(), c.getCode()))
+								.count() == 0)) {
 					if (c.getCurrency() == null) {
 						c.setCurrency(price.getCurrency());
 					}
@@ -458,7 +459,7 @@ public class Calculator {
 			if (resourcePrice != null) {
 				returned.setAmount(returned.getAmount().add(commissions[0]).add(detain[0]));
 			} else {
-				returned.setAmount(returnTariff.add(returnForeignTariff).add(commissions[0]).subtract(detain[0]));
+				returned.setAmount(returnTariff.add(returnForeignTariff).add(commissions[0]).add(detain[0]));
 			}
 			if (returned.getAmount().compareTo(BigDecimal.ZERO) < 0) {
 				returned.setAmount(BigDecimal.ZERO);
@@ -730,7 +731,7 @@ public class Calculator {
 		price.getTariff().getReturnConditions().add(createReturnCondition("3", null, 75, 720));
 		price.getTariff().getReturnConditions().add(createReturnCondition("4", null, 100, 1440));*/
 		//newPrice = calculateReturn(price, user, Currency.UAH, null, new GregorianCalendar(2019, GregorianCalendar.FEBRUARY, 22, 15, 0).getTime());
-		newPrice = calculateReturn(price, getResourcePrice(), user, Currency.UAH,
+		newPrice = calculateReturn(price, null /*getResourcePrice()*/, user, Currency.UAH,
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 9, 0).getTime(),
 				new GregorianCalendar(2019, GregorianCalendar.JULY, 4, 15, 0).getTime());
 		if (newPrice != null)
