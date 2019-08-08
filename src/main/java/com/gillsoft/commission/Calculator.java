@@ -331,7 +331,9 @@ public class Calculator {
 		if (result.getTariff().getReturnConditions() != null) {
 			for (ReturnCondition condition : result.getTariff().getReturnConditions()) {
 				for (Commission commission : result.getCommissions()) {
-					commission.getReturnConditions().remove(condition);
+					if (commission.getReturnConditions().contains(condition)) {
+						commission.setReturnConditions(null);
+					}
 				}
 			}
 		}
