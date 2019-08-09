@@ -212,7 +212,8 @@ public class Calculator {
 			
 			// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
 			if (resultCommission.getId() == null
-					&& resultCommission.getValueCalcType() == CalcType.IN) {
+					&& (resultCommission.getValueCalcType() == CalcType.IN
+							|| resultCommission.getValueCalcType() == CalcType.FROM)) {
 				resultCommission.setValue(BigDecimal.ZERO);
 				resultCommission.setVat(BigDecimal.ZERO);
 			} else {
@@ -331,7 +332,8 @@ public class Calculator {
 		if (result.getTariff().getReturnConditions() != null) {
 			for (ReturnCondition condition : result.getTariff().getReturnConditions()) {
 				for (Commission commission : result.getCommissions()) {
-					if (commission.getReturnConditions().contains(condition)) {
+					if (commission.getReturnConditions() != null
+							&& commission.getReturnConditions().contains(condition)) {
 						commission.setReturnConditions(null);
 					}
 				}
