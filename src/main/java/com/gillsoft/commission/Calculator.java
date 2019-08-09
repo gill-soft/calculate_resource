@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.util.SerializationUtils;
 
@@ -191,7 +192,7 @@ public class Calculator {
 		// сперва расчитываем возврат для стоимости не учитывая данные от ресурса
 		// получаем актуальные условия возврата и курс валют
 		BigDecimal rate = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
-		ReturnCondition tariffCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart);
+		ReturnCondition tariffCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
 		
 		// расчитываем возврат тарифа
 		Tariff tariff = (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(price.getTariff()));
@@ -217,13 +218,17 @@ public class Calculator {
 				resultCommission.setValue(BigDecimal.ZERO);
 				resultCommission.setVat(BigDecimal.ZERO);
 			} else {
-				ReturnCondition commissionCondition = getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart);
+				ReturnCondition commissionCondition = getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
+						commission.getId() != null);
 				if (commissionCondition == null) {
-					commissionCondition = tariffCondition;
+					commissionCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
+							commission.getId() != null);
 				}
 				resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
 				resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
-				resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
+				if (commissionCondition != null) {
+					resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
+				}
 				if (resultCommission.getValueCalcType() == CalcType.OUT) {
 					amount = amount.add(resultCommission.getValue());
 					vat = vat.add(resultCommission.getVat());
@@ -248,7 +253,7 @@ public class Calculator {
 						if (resultCommission.getVat() != null) {
 							resultCommission.setVat(resultCommission.getVat().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
 						}
-						resultCommission.setReturnConditions(getActualConditionList(resultCommission.getReturnConditions(), minutesBeforeDepart));
+						resultCommission.setReturnConditions(getActualConditionList(resultCommission.getReturnConditions(), minutesBeforeDepart, false));
 						
 						// находим эту комиссию в просчитанных данных и обновляем
 						for (Commission commission : result.getCommissions()) {
@@ -256,8 +261,7 @@ public class Calculator {
 								if (resultCommission.getVat() != null) {
 									commission.setVat(resultCommission.getVat());
 								} else {
-									commission.setVat(commission.getVat().multiply(resourceCommission.getValue())
-											.divide(commission.getValue(), 2, RoundingMode.HALF_UP));
+									commission.setVat(calcVat(commission.getVat(), commission.getValue(), resourceCommission.getValue()));
 								}
 								commission.setValue(resultCommission.getValue());
 								commission.setReturnConditions(resultCommission.getReturnConditions());
@@ -292,8 +296,7 @@ public class Calculator {
 					
 				// если ндс нет, то берем пропорционально от данных продажи
 				} else if (price.getVat() != null) {
-					result.setVat(price.getVat().multiply(result.getAmount())
-							.divide(price.getAmount(), 2, RoundingMode.HALF_UP));
+					result.setVat(calcVat(price.getVat(), price.getAmount(), result.getAmount()));
 				}
 			}
 			// если есть тариф, то используем его
@@ -316,10 +319,9 @@ public class Calculator {
 				// если ндс нет и есть тариф, то берем пропорционально от данных продажи
 				} else if (resourceTariff.getValue() != null
 						&& price.getTariff().getVat() != null) {
-					resourceTariff.setVat(price.getTariff().getVat().multiply(resourceTariff.getValue())
-							.divide(price.getTariff().getValue(), 2, RoundingMode.HALF_UP));
+					resourceTariff.setVat(calcVat(price.getTariff().getVat(), price.getTariff().getValue(), resourceTariff.getValue()));
 				}
-				resourceTariff.setReturnConditions(getActualConditionList(resourceTariff.getReturnConditions(), minutesBeforeDepart));
+				resourceTariff.setReturnConditions(getActualConditionList(resourceTariff.getReturnConditions(), minutesBeforeDepart, false));
 				result.setTariff(resourceTariff);
 			
 			// если нет тарифа от ресурса, но была стоимость
@@ -342,6 +344,13 @@ public class Calculator {
 		return result;
 	}
 	
+	private static BigDecimal calcVat(BigDecimal vat1, BigDecimal value1, BigDecimal value2) {
+		if (value1.compareTo(BigDecimal.ZERO) == 0) {
+			return BigDecimal.ZERO;
+		}
+		return vat1.multiply(value2).divide(value1, 2, RoundingMode.HALF_UP);
+	}
+	
 	private static BigDecimal calcReturn(ReturnCondition condition, BigDecimal value, BigDecimal rate) {
 		if (condition == null
 				|| condition.getReturnPercent() == null
@@ -353,10 +362,11 @@ public class Calculator {
 		}
 	}
 	
-	private static List<ReturnCondition> getActualConditionList(List<ReturnCondition> conditions, int minutesBeforeDepart) {
+	private static List<ReturnCondition> getActualConditionList(List<ReturnCondition> conditions,
+			int minutesBeforeDepart, boolean applyOnlyOwn) {
 		if (conditions != null
 				&& conditions.size() > 1) {
-			ReturnCondition condition = getActualReturnCondition(conditions, minutesBeforeDepart);
+			ReturnCondition condition = getActualReturnCondition(conditions, minutesBeforeDepart, applyOnlyOwn);
 			return condition != null ? Collections.singletonList(condition) : null;
 		} else {
 			return conditions;
@@ -422,8 +432,30 @@ public class Calculator {
 		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
 	}
 
-	private static ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions, int minutesBeforeDepart) {
-		if (returnConditions == null) {
+	private static ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
+			int minutesBeforeDepart, boolean applyOnlyOwn) {
+		if (returnConditions == null
+				|| returnConditions.isEmpty()) {
+			return null;
+		}
+		// собственные условия возврата
+		List<ReturnCondition> ownConditions = returnConditions.stream()
+				.filter(rc -> rc.getId() != null).collect(Collectors.toList());
+		if (applyOnlyOwn) {
+			return getActualReturnCondition(ownConditions, minutesBeforeDepart);
+		}
+		// по умолчанию собственным условиям возврата приоритет
+		ReturnCondition ownCondition = getActualReturnCondition(ownConditions, minutesBeforeDepart);
+		if (ownCondition != null) {
+			return ownCondition;
+		}
+		return getActualReturnCondition(returnConditions, minutesBeforeDepart);
+	}
+	
+	private static ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
+			int minutesBeforeDepart) {
+		if (returnConditions == null
+				|| returnConditions.isEmpty()) {
 			return null;
 		}
 		// сортируем условия по времени (минуты) до даты отправления от большего к меньшему
