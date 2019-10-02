@@ -128,7 +128,7 @@ public class Calculator {
 				|| commissionCurrency == priceCurrency) {
 			return rate;
 		}
-		return BigDecimal.valueOf(getCoeffRate(rates, priceCurrency, saleCurrency));
+		return BigDecimal.valueOf(getCoeffRate(rates, commissionCurrency, saleCurrency));
 	}
 	
 	private static Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal rate) {
@@ -377,15 +377,6 @@ public class Calculator {
 		Map<String, Map<String, BigDecimal>> rates = new HashMap<>();
 		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
 		fillRates(parent, rates);
-		// добавляем обратный курс если такого нет
-		rates.forEach((keyMap, valueMap) -> valueMap.forEach((key, value) -> {
-			if (!rates.containsKey(key)) {
-				rates.put(key, new HashMap<>());
-			}
-			if (!rates.get(key).containsKey(keyMap)) {
-				rates.get(key).put(keyMap, BigDecimal.ONE.divide(value, 8, BigDecimal.ROUND_HALF_UP));
-			}
-		}));
 		return rates;
 	}
 	
