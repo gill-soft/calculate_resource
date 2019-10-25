@@ -47,7 +47,7 @@ public class RestClient {
 			if (o == null) {
 				return getOrganizationRates(organizationId);
 			}
-			return (Map<String, Map<String, BigDecimal>>)o;
+			return (Map<String, Map<String, BigDecimal>>) o;
 		} catch (Exception e) {
 			return getOrganizationRates(organizationId);
 		}
@@ -66,8 +66,8 @@ public class RestClient {
 			map = sendRequest(template, UriComponentsBuilder.fromUriString(Config.getUrl().concat(String.format(RATES, organizationId))).build().toUri());
 			List<Map<String, Object>> couples = map.get("couples");
 			List<Map<String, Object>> rates = map.get("rates");
+			Map<String, Map<String, BigDecimal>> ratesMap = new HashMap<>();
 			if (couples != null && rates != null && !couples.isEmpty() && !rates.isEmpty()) {
-				Map<String, Map<String, BigDecimal>> ratesMap = new HashMap<>();
 				couples.stream().forEach(couple -> {
 					String keyFrom = String.valueOf(couple.get("currency_from"));
 					Map<String, BigDecimal> coupleRates = ratesMap.get(keyFrom);
@@ -81,9 +81,9 @@ public class RestClient {
 						ratesMap.get(keyFrom).put(keyTo, coupleRate);
 					});
 				});
-				cache.write(ratesMap, getCacheParams(organizationId));
-				return ratesMap;
 			}
+			cache.write(ratesMap, getCacheParams(organizationId));
+			return ratesMap;
 		} catch (Exception e) { e.printStackTrace(); }
 		return null;
 	}
