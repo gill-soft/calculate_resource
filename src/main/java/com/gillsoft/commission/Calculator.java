@@ -12,6 +12,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 import org.springframework.util.SerializationUtils;
 
 import com.gillsoft.client.RestClient;
@@ -25,13 +30,17 @@ import com.gillsoft.model.ValueType;
 import com.gillsoft.ms.entity.BaseEntity;
 import com.gillsoft.ms.entity.User;
 
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class Calculator {
 
-	private static RestClient client = new RestClient();
+	@Autowired
+	@Qualifier("CalculateRestClient")
+	private RestClient client;
 
 	private static final String DEFAULT_ORGANIZATION = "0";
 
-	public static Price calculateResource(Price price, User user, Currency currency) {
+	public Price calculateResource(Price price, User user, Currency currency) {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		BigDecimal rate = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
 		
@@ -122,7 +131,7 @@ public class Calculator {
 		return result;
 	}
 	
-	private static BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate,
+	private BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate,
 			Currency saleCurrency, Currency priceCurrency, Currency commissionCurrency) {
 		if (commissionCurrency == null
 				|| commissionCurrency == priceCurrency) {
@@ -131,11 +140,11 @@ public class Calculator {
 		return BigDecimal.valueOf(getCoeffRate(rates, commissionCurrency, saleCurrency));
 	}
 	
-	private static Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal rate) {
+	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal rate) {
 		return addCommission(commissions, commission, commission.getValue(), rate);
 	}
 	
-	private static Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal value, BigDecimal rate) {
+	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal value, BigDecimal rate) {
 		Commission resultCommission = (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
 		resultCommission.setType(ValueType.FIXED);
 		resultCommission.setValue(value.multiply(rate).setScale(2, RoundingMode.HALF_UP));
@@ -147,7 +156,7 @@ public class Calculator {
 		return resultCommission;
 	}
 	
-	private static void setCommissionVat(Commission commission) {
+	private void setCommissionVat(Commission commission) {
 		if ((commission.getId() != null // считаем, что для собственного ресурса ндс в %
 				&& commission.getVat() != null)
 				|| (commission.getId() == null // для сборов ресурса считаем НДС как % только где сама комиссия как %
@@ -178,7 +187,7 @@ public class Calculator {
 			    в tariff - сумму к возврату от тарифа и условие, по которому выполнен возврат
 			    в commissions - суммы возврата и условие, по которому выполнен возврат, по каждой комиссии
 	 */
-	public static Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency,
+	public Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency,
 			Date currentDate, Date departureDate) {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		
@@ -344,14 +353,14 @@ public class Calculator {
 		return result;
 	}
 	
-	private static BigDecimal calcVat(BigDecimal vat1, BigDecimal value1, BigDecimal value2) {
+	private BigDecimal calcVat(BigDecimal vat1, BigDecimal value1, BigDecimal value2) {
 		if (value1.compareTo(BigDecimal.ZERO) == 0) {
 			return BigDecimal.ZERO;
 		}
 		return vat1.multiply(value2).divide(value1, 2, RoundingMode.HALF_UP);
 	}
 	
-	private static BigDecimal calcReturn(ReturnCondition condition, BigDecimal value, BigDecimal rate) {
+	private BigDecimal calcReturn(ReturnCondition condition, BigDecimal value, BigDecimal rate) {
 		if (condition == null
 				|| condition.getReturnPercent() == null
 				|| value == null
@@ -362,7 +371,7 @@ public class Calculator {
 		}
 	}
 	
-	private static List<ReturnCondition> getActualConditionList(List<ReturnCondition> conditions,
+	private List<ReturnCondition> getActualConditionList(List<ReturnCondition> conditions,
 			int minutesBeforeDepart, boolean applyOnlyOwn) {
 		if (conditions != null
 				&& conditions.size() > 1) {
@@ -373,14 +382,14 @@ public class Calculator {
 		}
 	}
 	
-	public static Map<String, Map<String, BigDecimal>> getRates(User user) {
+	public Map<String, Map<String, BigDecimal>> getRates(User user) {
 		Map<String, Map<String, BigDecimal>> rates = new HashMap<>();
 		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
 		fillRates(parent, rates);
 		return rates;
 	}
 	
-	private static void fillRates(BaseEntity parent, Map<String, Map<String, BigDecimal>> rates) {
+	private void fillRates(BaseEntity parent, Map<String, Map<String, BigDecimal>> rates) {
 		if (parent != null && parent.getParents() != null && !parent.getParents().isEmpty()) {
 			fillRates(parent.getParents().iterator().next(), rates);
 		}
@@ -401,7 +410,7 @@ public class Calculator {
 		}
 	}
 
-	public static float getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public float getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
 		if (Objects.equals(currencyFrom, currencyTo)) {
 			return 1f;
 		}
@@ -423,7 +432,7 @@ public class Calculator {
 		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
 	}
 
-	private static ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
+	private ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
 			int minutesBeforeDepart, boolean applyOnlyOwn) {
 		if (returnConditions == null
 				|| returnConditions.isEmpty()) {
@@ -443,7 +452,7 @@ public class Calculator {
 		return getActualReturnCondition(returnConditions, minutesBeforeDepart);
 	}
 	
-	private static ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
+	private ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
 			int minutesBeforeDepart) {
 		if (returnConditions == null
 				|| returnConditions.isEmpty()) {

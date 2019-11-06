@@ -7,8 +7,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -19,17 +24,20 @@ import com.gillsoft.config.Config;
 import com.gillsoft.logging.SimpleRequestResponseLoggingInterceptor;
 import com.gillsoft.util.RestTemplateUtil;
 
+@Component("CalculateRestClient")
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class RestClient {
 
 	private static final String RATES = "rates/%s";
 
+	@Autowired
+	@Qualifier("MemoryCacheHandler")
 	private CacheHandler cache;
 
 	private RestTemplate template;
 	
 	public RestClient() {
 		template = createNewPoolingTemplate(Config.getRequestTimeout());
-		cache = new MemoryCacheHandler();
 	}
 
 	public RestTemplate createNewPoolingTemplate(int requestTimeout) {
