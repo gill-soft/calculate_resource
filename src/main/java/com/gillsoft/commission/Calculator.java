@@ -42,6 +42,8 @@ public class Calculator {
 
 	public Price calculateResource(Price price, User user, Currency currency) {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
+		
+		// коэфициент перевода стоимости в валюту продажи
 		BigDecimal rate = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
 		
 		// итоговый тариф
@@ -75,7 +77,11 @@ public class Calculator {
 			for (Commission commission : price.getCommissions()) {
 				if (commission.getValueCalcType() == CalcType.IN) {
 					if (commission.getType() == ValueType.FIXED) {
-						clearTariff = clearTariff.subtract(commission.getValue());
+						
+						// переводим вычитаемую комиссию в валюту тарифа
+						Commission inTariffCurr = toCurr(commission, commission.getValue(),
+								getRate(rates, rate, price.getCurrency(), price.getCurrency(), commission.getCurrency()));
+						clearTariff = clearTariff.subtract(inTariffCurr.getValue());
 						addCommission(commissions, commission,
 								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
 					} else if (commission.getType() == ValueType.PERCENT) {
@@ -91,7 +97,7 @@ public class Calculator {
 					BigDecimal value = percentTariff.multiply(commission.getValue()).divide(commPercents, 2, RoundingMode.HALF_UP);
 					clearTariff = clearTariff.subtract(value);
 					addCommission(commissions, commission, value,
-							getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
+							getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
 				}
 			}
 			// считаем сборы OUT и FROM
@@ -107,7 +113,7 @@ public class Calculator {
 					} else if (commission.getType() == ValueType.PERCENT) {
 						BigDecimal value = clearTariff.multiply(commission.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
 						result = addCommission(commissions, commission, value,
-								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
+								getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
 					}
 					if (result != null 
 							&& commission.getValueCalcType() == CalcType.OUT) {
@@ -131,6 +137,9 @@ public class Calculator {
 		return result;
 	}
 	
+	/*
+	 * Коэфициент перевода указанной валюты в указанную валюту продажи.
+	 */
 	private BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate,
 			Currency saleCurrency, Currency priceCurrency, Currency commissionCurrency) {
 		if (commissionCurrency == null
@@ -145,6 +154,12 @@ public class Calculator {
 	}
 	
 	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal value, BigDecimal rate) {
+		Commission resultCommission = toCurr(commission, value, rate);
+		commissions.add(resultCommission);
+		return resultCommission;
+	}
+	
+	private Commission toCurr(Commission commission, BigDecimal value, BigDecimal rate) {
 		Commission resultCommission = (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
 		resultCommission.setType(ValueType.FIXED);
 		resultCommission.setValue(value.multiply(rate).setScale(2, RoundingMode.HALF_UP));
@@ -152,7 +167,6 @@ public class Calculator {
 		if (commission.getVat() != null) {
 			commission.setVat(commission.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
 		}
-		commissions.add(resultCommission);
 		return resultCommission;
 	}
 	
