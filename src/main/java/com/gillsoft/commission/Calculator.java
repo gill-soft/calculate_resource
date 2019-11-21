@@ -72,6 +72,7 @@ public class Calculator {
 		if (price.getCommissions() != null) {
 			
 			// очищаем от сборов внутри тарифа
+			// отрицательные комиссии в очистке не учитываем
 			// вычитаем фиксированные значения и считаем проценты
 			BigDecimal commPercents = new BigDecimal(100);
 			for (Commission commission : price.getCommissions()) {
@@ -79,9 +80,11 @@ public class Calculator {
 					if (commission.getType() == ValueType.FIXED) {
 						
 						// переводим вычитаемую комиссию в валюту тарифа
-						Commission inTariffCurr = toCurr(commission, commission.getValue(),
-								getRate(rates, rate, price.getCurrency(), price.getCurrency(), commission.getCurrency()));
-						clearTariff = clearTariff.subtract(inTariffCurr.getValue());
+						if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
+							Commission inTariffCurr = toCurr(commission, commission.getValue(),
+									getRate(rates, rate, price.getCurrency(), price.getCurrency(), commission.getCurrency()));
+							clearTariff = clearTariff.subtract(inTariffCurr.getValue());
+						}
 						addCommission(commissions, commission,
 								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
 					} else if (commission.getType() == ValueType.PERCENT) {
@@ -89,13 +92,16 @@ public class Calculator {
 					}
 				}
 			}
+			// отрицательные комиссии в очистке не учитываем
 			// вычитываем процентные значения
 			BigDecimal percentTariff = clearTariff;
 			for (Commission commission : price.getCommissions()) {
 				if (commission.getValueCalcType() == CalcType.IN
 						&& commission.getType() == ValueType.PERCENT) {
 					BigDecimal value = percentTariff.multiply(commission.getValue()).divide(commPercents, 2, RoundingMode.HALF_UP);
-					clearTariff = clearTariff.subtract(value);
+					if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
+						clearTariff = clearTariff.subtract(value);
+					}
 					addCommission(commissions, commission, value,
 							getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
 				}
