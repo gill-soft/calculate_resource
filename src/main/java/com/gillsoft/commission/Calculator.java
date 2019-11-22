@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +24,7 @@ import com.gillsoft.client.RestClient;
 import com.gillsoft.model.CalcType;
 import com.gillsoft.model.Commission;
 import com.gillsoft.model.Currency;
+import com.gillsoft.model.Discount;
 import com.gillsoft.model.Price;
 import com.gillsoft.model.ReturnCondition;
 import com.gillsoft.model.Tariff;
@@ -87,9 +89,14 @@ public class Calculator {
 						}
 						addCommission(commissions, commission,
 								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
-					} else if (commission.getType() == ValueType.PERCENT) {
+					} else if (commission.getType() == ValueType.PERCENT
+							&& commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
 						commPercents = commPercents.add(commission.getValue());
 					}
+				}
+				// все отрицательные комиссии (скидки) считаем как OUT
+				if (commission.getValue().compareTo(BigDecimal.ZERO) < 0) {
+					commission.setValueCalcType(CalcType.OUT);
 				}
 			}
 			// отрицательные комиссии в очистке не учитываем
@@ -122,7 +129,8 @@ public class Calculator {
 								getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
 					}
 					if (result != null 
-							&& commission.getValueCalcType() == CalcType.OUT) {
+							&& commission.getValueCalcType() == CalcType.OUT
+							&& commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
 						commissionOut = commissionOut.add(result.getValue());
 						commissionOutVat = commissionOutVat.add(result.getVat());
 					}
@@ -140,6 +148,17 @@ public class Calculator {
 		result.setCurrency(currency);
 		result.setTariff(tariff);
 		result.setCommissions(commissions);
+		
+		// выделяем скидки
+		List<Discount> discounts = new ArrayList<>();
+		for (Iterator<Commission> iterator = commissions.iterator(); iterator.hasNext();) {
+			Commission commission = iterator.next();
+			if (commission.getValue().compareTo(BigDecimal.ZERO) < 0) {
+				discounts.add(new Discount(commission));
+				iterator.remove();
+			}
+		}
+		price.setDiscounts(discounts);
 		return result;
 	}
 	
