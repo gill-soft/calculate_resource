@@ -149,10 +149,11 @@ public class Calculator {
 		result.setTariff(tariff);
 		result.setCommissions(commissions);
 		
-		// выделяем скидки
+		// выделяем скидки и проставляем валюту комиссиям
 		List<Discount> discounts = new ArrayList<>();
 		for (Iterator<Commission> iterator = commissions.iterator(); iterator.hasNext();) {
 			Commission commission = iterator.next();
+			commission.setCurrency(currency);
 			if (commission.getValue().compareTo(BigDecimal.ZERO) < 0) {
 				discounts.add(new Discount(commission));
 				iterator.remove();
