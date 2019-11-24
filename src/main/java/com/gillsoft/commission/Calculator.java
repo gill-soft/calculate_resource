@@ -158,7 +158,9 @@ public class Calculator {
 				iterator.remove();
 			}
 		}
-		price.setDiscounts(discounts);
+		if (!discounts.isEmpty()) {
+			result.setDiscounts(discounts);
+		}
 		return result;
 	}
 	
