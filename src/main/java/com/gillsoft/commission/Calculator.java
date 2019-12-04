@@ -392,6 +392,15 @@ public class Calculator {
 				}
 			}
 		}
+		// проверяем наличие скидок и отнимаем их величину от суммы возврата
+		if (price.getDiscounts() != null) {
+			
+			// значение скидки всегда отрицательное
+			price.getDiscounts().forEach(d -> result.getAmount().add(d.getValue()));
+			if (BigDecimal.ZERO.compareTo(result.getAmount()) > 0) {
+				result.setAmount(BigDecimal.ZERO);
+			}
+		}
 		return result;
 	}
 	
