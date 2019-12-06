@@ -396,7 +396,7 @@ public class Calculator {
 		if (price.getDiscounts() != null) {
 			
 			// значение скидки всегда отрицательное
-			price.getDiscounts().forEach(d -> result.getAmount().add(d.getValue()));
+			price.getDiscounts().forEach(d -> result.setAmount(result.getAmount().add(d.getValue())));
 			if (BigDecimal.ZERO.compareTo(result.getAmount()) > 0) {
 				result.setAmount(BigDecimal.ZERO);
 			}
