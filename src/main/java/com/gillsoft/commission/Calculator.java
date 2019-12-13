@@ -341,9 +341,9 @@ public class Calculator {
 			}
 			// если ресурс вернул стоимость возврата
 			if (resourcePrice.getAmount() != null) {
-				result.setAmount(resourcePrice.getAmount().multiply(rate).add(overOwnCommissions).setScale(2, RoundingMode.HALF_UP));
+				result.setAmount(resourcePrice.getAmount().multiply(resourceRate).add(overOwnCommissions).setScale(2, RoundingMode.HALF_UP));
 				if (resourcePrice.getVat() != null) {
-					result.setVat(resourcePrice.getVat().multiply(rate).add(overOwnCommissionsVat).setScale(2, RoundingMode.HALF_UP));
+					result.setVat(resourcePrice.getVat().multiply(resourceRate).add(overOwnCommissionsVat).setScale(2, RoundingMode.HALF_UP));
 					
 				// если ндс нет, то берем пропорционально от данных продажи
 				} else if (price.getVat() != null) {
