@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -20,6 +21,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 import org.springframework.util.SerializationUtils;
 
+import com.gillsoft.client.CoupleRate;
 import com.gillsoft.client.RestClient;
 import com.gillsoft.model.CalcType;
 import com.gillsoft.model.Commission;
@@ -46,7 +48,7 @@ public class Calculator {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		
 		// коэфициент перевода стоимости в валюту продажи
-		BigDecimal rate = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
+		BigDecimal rate = getCoeffRate(rates, price.getCurrency(), currency);
 		
 		// итоговый тариф
 		Tariff tariff = null;
@@ -174,7 +176,7 @@ public class Calculator {
 				|| commissionCurrency == priceCurrency) {
 			return rate;
 		}
-		return BigDecimal.valueOf(getCoeffRate(rates, commissionCurrency, saleCurrency));
+		return getCoeffRate(rates, commissionCurrency, saleCurrency);
 	}
 	
 	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal rate) {
@@ -242,7 +244,7 @@ public class Calculator {
 		
 		// сперва расчитываем возврат для стоимости не учитывая данные от ресурса
 		// получаем актуальные условия возврата и курс валют
-		BigDecimal rate = BigDecimal.valueOf(getCoeffRate(rates, price.getCurrency(), currency));
+		BigDecimal rate = getCoeffRate(rates, price.getCurrency(), currency);
 		ReturnCondition tariffCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
 		
 		// расчитываем возврат тарифа
@@ -293,7 +295,7 @@ public class Calculator {
 		
 		// проверяем данные от ресурса
 		if (resourcePrice != null) {
-			BigDecimal resourceRate = BigDecimal.valueOf(getCoeffRate(rates, resourcePrice.getCurrency(), currency));
+			BigDecimal resourceRate = getCoeffRate(rates, resourcePrice.getCurrency(), currency);
 			
 			// возвраты комиссий
 			if (resourcePrice.getCommissions() != null) {
@@ -434,21 +436,31 @@ public class Calculator {
 	}
 	
 	public Map<String, Map<String, BigDecimal>> getRates(User user) {
-		Map<String, Map<String, BigDecimal>> rates = new HashMap<>();
-		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
-		fillRates(parent, rates);
-		return rates;
+		Map<String, Map<String, CoupleRate>> couples = getCouples(user);
+		return convertToRatesMap(couples);
 	}
 	
-	private void fillRates(BaseEntity parent, Map<String, Map<String, BigDecimal>> rates) {
+	public Map<String, Map<String, CoupleRate>> getCouples(User user) {
+		Map<String, Map<String, CoupleRate>> couples = new HashMap<>();
+		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
+		fillRates(parent, couples);
+		return couples;
+	}
+	
+	private Map<String, Map<String, BigDecimal>> convertToRatesMap(Map<String, Map<String, CoupleRate>> couples) {
+		return couples.entrySet().stream().collect(Collectors.toMap(Entry::getKey,
+				v -> v.getValue().entrySet().stream().collect(Collectors.toMap(Entry::getKey, c -> c.getValue().getRate()))));
+	}
+	
+	private void fillRates(BaseEntity parent, Map<String, Map<String, CoupleRate>> rates) {
 		if (parent != null && parent.getParents() != null && !parent.getParents().isEmpty()) {
 			fillRates(parent.getParents().iterator().next(), rates);
 		}
 		try {
-			Map<String, Map<String, BigDecimal>> parentRates = client.getCachedRates(parent != null ? String.valueOf(parent.getId()) : DEFAULT_ORGANIZATION);
+			Map<String, Map<String, CoupleRate>> parentRates = client.getCachedRates(parent != null ? String.valueOf(parent.getId()) : DEFAULT_ORGANIZATION);
 			if (parentRates != null && !parentRates.isEmpty()) {
 				parentRates.forEach((key, value) -> {
-					Map<String, BigDecimal> keyRates = rates.get(key);
+					Map<String, CoupleRate> keyRates = rates.get(key);
 					if (keyRates == null) {
 						rates.put(key, value);
 					} else {
@@ -461,23 +473,45 @@ public class Calculator {
 		}
 	}
 
-	public float getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
 		if (Objects.equals(currencyFrom, currencyTo)) {
-			return 1f;
+			return BigDecimal.ONE;
 		}
 		Map<String, BigDecimal> curFromRates = rates.get(String.valueOf(currencyFrom));
 		if (curFromRates != null && !curFromRates.isEmpty()) {
 			BigDecimal curToRate = curFromRates.get(String.valueOf(currencyTo));
 			if (curToRate != null) {
-				return curToRate.floatValue();
+				return curToRate;
 			}
 		}
 		// если не нашли курс у организации - ищем общий (organizationId = DEFAULT_ORGANIZATION)
 		if (!rates.containsKey(DEFAULT_ORGANIZATION)) {
 			try {
-				Map<String, Map<String, BigDecimal>> rates0 = client.getCachedRates(DEFAULT_ORGANIZATION);
+				Map<String, Map<String, BigDecimal>> rates0 = convertToRatesMap(client.getCachedRates(DEFAULT_ORGANIZATION));
 				rates0.put(DEFAULT_ORGANIZATION, null);
 				return getCoeffRate(rates0, currencyFrom, currencyTo);
+			} catch (Exception e) { }
+		}
+		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
+	}
+	
+	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+		if (Objects.equals(currencyFrom, currencyTo)) {
+			return BigDecimal.ONE;
+		}
+		Map<String, CoupleRate> curFromRates = rates.get(String.valueOf(currencyFrom));
+		if (curFromRates != null && !curFromRates.isEmpty()) {
+			CoupleRate curToRate = curFromRates.get(String.valueOf(currencyTo));
+			if (curToRate != null) {
+				return client.getCachedCoupleRate(curToRate.getId(), date);
+			}
+		}
+		// если не нашли курс у организации - ищем общий (organizationId = DEFAULT_ORGANIZATION)
+		if (!rates.containsKey(DEFAULT_ORGANIZATION)) {
+			try {
+				Map<String, Map<String, CoupleRate>> rates0 = client.getCachedRates(DEFAULT_ORGANIZATION);
+				rates0.put(DEFAULT_ORGANIZATION, null);
+				return getCoupleDateCoeffRate(rates0, date, currencyFrom, currencyTo);
 			} catch (Exception e) { }
 		}
 		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);

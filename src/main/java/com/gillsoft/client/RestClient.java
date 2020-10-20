@@ -1,12 +1,16 @@
 package com.gillsoft.client;
 
 import java.math.BigDecimal;
-import java.net.URI;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -27,8 +31,11 @@ import com.gillsoft.util.RestTemplateUtil;
 @Component("CalculateRestClient")
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class RestClient {
+	
+	private static Logger LOGGER = LogManager.getLogger(RestClient.class);
 
 	private static final String RATES = "rates/%s";
+	private static final String DATE_RATE = "rate/%s/%s";
 
 	@Autowired
 	@Qualifier("MemoryCacheHandler")
@@ -49,13 +56,13 @@ public class RestClient {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public Map<String, Map<String, BigDecimal>> getCachedRates(String organizationId) throws IOCacheException {
+	public Map<String, Map<String, CoupleRate>> getCachedRates(String organizationId) throws IOCacheException {
 		try {
 			Object o = cache.read(getCacheParams(organizationId));
 			if (o == null) {
 				return getOrganizationRates(organizationId);
 			}
-			return (Map<String, Map<String, BigDecimal>>) o;
+			return (Map<String, Map<String, CoupleRate>>) o;
 		} catch (Exception e) {
 			return getOrganizationRates(organizationId);
 		}
@@ -68,17 +75,18 @@ public class RestClient {
 		return params;
 	}
 
-	public Map<String, Map<String, BigDecimal>> getOrganizationRates(String organizationId) {
+	@SuppressWarnings("unchecked")
+	public Map<String, Map<String, CoupleRate>> getOrganizationRates(String organizationId) {
 		Map<String, List<Map<String, Object>>> map = null;
 		try {
-			map = sendRequest(template, UriComponentsBuilder.fromUriString(Config.getUrl().concat(String.format(RATES, organizationId))).build().toUri());
+			map = template.getForObject(UriComponentsBuilder.fromUriString(Config.getUrl().concat(String.format(RATES, organizationId))).build().toUri(), Map.class);
 			List<Map<String, Object>> couples = map.get("couples");
 			List<Map<String, Object>> rates = map.get("rates");
-			Map<String, Map<String, BigDecimal>> ratesMap = new HashMap<>();
+			Map<String, Map<String, CoupleRate>> ratesMap = new HashMap<>();
 			if (couples != null && rates != null && !couples.isEmpty() && !rates.isEmpty()) {
 				couples.stream().forEach(couple -> {
 					String keyFrom = String.valueOf(couple.get("currency_from"));
-					Map<String, BigDecimal> coupleRates = ratesMap.get(keyFrom);
+					Map<String, CoupleRate> coupleRates = ratesMap.get(keyFrom);
 					if (coupleRates == null) {
 						coupleRates = new HashMap<>();
 						ratesMap.put(keyFrom, coupleRates);
@@ -86,19 +94,48 @@ public class RestClient {
 					rates.stream().filter(f -> f.get("couple_id").equals(couple.get("id"))).forEach(rate -> {
 						String keyTo = String.valueOf(couple.get("currency_to"));
 						BigDecimal coupleRate = new BigDecimal(String.valueOf(rate.get("rate")));
-						ratesMap.get(keyFrom).put(keyTo, coupleRate);
+						ratesMap.get(keyFrom).put(keyTo, new CoupleRate(String.valueOf(couple.get("id")), coupleRate));
 					});
 				});
 			}
 			cache.write(ratesMap, getCacheParams(organizationId));
 			return ratesMap;
-		} catch (Exception e) { e.printStackTrace(); }
+		} catch (Exception e) {
+			LOGGER.error("Can not get rates for organisation " + organizationId, e);
+		}
 		return null;
 	}
-
+	
+	public BigDecimal getCachedCoupleRate(String coupleId, Date date) {
+		try {
+			LocalDateTime dateTime = date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+			Object o = cache.read(getCacheParams(coupleId + "_" + dateTime.toString()));
+			if (o == null) {
+				return getCoupleRate(coupleId, date);
+			}
+			return (BigDecimal) o;
+		} catch (Exception e) {
+			return getCoupleRate(coupleId, date);
+		}
+	}
+	
 	@SuppressWarnings("unchecked")
-	private Map<String, List<Map<String, Object>>> sendRequest(RestTemplate template, URI uri) throws Exception {
-		return template.getForObject(uri, Map.class);
+	public BigDecimal getCoupleRate(String coupleId, Date date) {
+		LocalDateTime dateTime = date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+		List<Map<String, Object>> rates = null;
+		try {
+			rates = template.getForObject(UriComponentsBuilder.fromUriString(Config.getUrl().concat(String.format(DATE_RATE, coupleId, dateTime.toString()))).build().toUri(), List.class);
+			BigDecimal rate = null;
+			if (rates != null
+					&& !rates.isEmpty()) {
+				rate = new BigDecimal(String.valueOf(rates.get(0).get("rate")));
+			}
+			cache.write(rate, getCacheParams(coupleId + "_" + dateTime.toString()));
+			return rate;
+		} catch (Exception e) {
+			LOGGER.error("Can not get rates for couple " + coupleId + " for date " + dateTime.toString(), e);
+		}
+		return null;
 	}
 
 	public CacheHandler getCache() {
