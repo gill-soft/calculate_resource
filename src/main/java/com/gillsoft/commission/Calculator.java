@@ -32,6 +32,7 @@ import com.gillsoft.model.ReturnCondition;
 import com.gillsoft.model.Tariff;
 import com.gillsoft.model.ValueType;
 import com.gillsoft.ms.entity.BaseEntity;
+import com.gillsoft.ms.entity.TariffMarkup;
 import com.gillsoft.ms.entity.User;
 
 @Component
@@ -43,8 +44,12 @@ public class Calculator {
 	private RestClient client;
 
 	private static final String DEFAULT_ORGANIZATION = "0";
-
+	
 	public Price calculateResource(Price price, User user, Currency currency) {
+		return calculateResource(price, user, currency, null);
+	}
+
+	public Price calculateResource(Price price, User user, Currency currency, List<TariffMarkup> tariffMarkups) {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		
 		// коэфициент перевода стоимости в валюту продажи
@@ -70,7 +75,8 @@ public class Calculator {
 		
 		// выделяем чистый тариф
 		// считаем, что от ресурса получены все составляющие в одной валюте
-		BigDecimal clearTariff = tariff.getValue();
+		// добавляем к тарифу надбавки
+		BigDecimal clearTariff = applyMarkups(rates, tariff.getValue(), price.getCurrency(), tariffMarkups);
 		List<Commission> commissions = new ArrayList<>();
 		
 		if (price.getCommissions() != null) {
@@ -165,6 +171,23 @@ public class Calculator {
 			result.setDiscounts(discounts);
 		}
 		return result;
+	}
+	
+	private BigDecimal applyMarkups(Map<String, Map<String, BigDecimal>> rates, BigDecimal tariffValue, Currency tariffCurrency, List<TariffMarkup> tariffMarkups) {
+		if (tariffMarkups == null
+				|| tariffMarkups.isEmpty()) {
+			return tariffValue;
+		}
+		BigDecimal markupAmount = BigDecimal.ZERO;
+		for (TariffMarkup tariffMarkup : tariffMarkups) {
+			if (tariffMarkup.getValueType() == com.gillsoft.ms.entity.ValueType.PERCENT) {
+				markupAmount = markupAmount.add(tariffValue.multiply(tariffMarkup.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP));
+			} else {
+				BigDecimal rate = getCoeffRate(rates, Currency.valueOf(tariffMarkup.getCurrency().name()), tariffCurrency);
+				markupAmount = markupAmount.add(tariffMarkup.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+			}
+		}
+		return tariffValue.add(markupAmount);
 	}
 	
 	/*
