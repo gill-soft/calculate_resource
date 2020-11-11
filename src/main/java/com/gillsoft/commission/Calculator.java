@@ -69,14 +69,16 @@ public class Calculator {
 		if (tariff.getVat() == null) {
 			tariff.setVat(BigDecimal.ZERO);
 		}
+		// добавляем к тарифу надбавки
+		tariff.setValue(applyMarkups(rates, tariff.getValue(), price.getCurrency(), tariffMarkups));
+		
 		// сумма комиссий поверх
 		BigDecimal commissionOut = BigDecimal.ZERO;
 		BigDecimal commissionOutVat = BigDecimal.ZERO;
 		
 		// выделяем чистый тариф
 		// считаем, что от ресурса получены все составляющие в одной валюте
-		// добавляем к тарифу надбавки
-		BigDecimal clearTariff = applyMarkups(rates, tariff.getValue(), price.getCurrency(), tariffMarkups);
+		BigDecimal clearTariff = tariff.getValue();
 		List<Commission> commissions = new ArrayList<>();
 		
 		if (price.getCommissions() != null) {
