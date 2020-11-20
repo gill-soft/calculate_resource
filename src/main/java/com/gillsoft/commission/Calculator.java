@@ -1,5 +1,6 @@
 package com.gillsoft.commission;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import com.gillsoft.model.ValueType;
 import com.gillsoft.ms.entity.BaseEntity;
 import com.gillsoft.ms.entity.TariffMarkup;
 import com.gillsoft.ms.entity.User;
+import com.gillsoft.util.StringUtil;
 
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -44,6 +46,30 @@ public class Calculator {
 	private RestClient client;
 
 	private static final String DEFAULT_ORGANIZATION = "0";
+	
+	public Price copy(Price price) {
+		try {
+			return StringUtil.jsonStringToObject(Price.class, StringUtil.objectToJsonString(price));
+		} catch (IOException e) {
+			return (Price) SerializationUtils.deserialize(SerializationUtils.serialize(price));
+		}
+	}
+	
+	public Tariff copy(Tariff tariff) {
+		try {
+			return StringUtil.jsonStringToObject(Tariff.class, StringUtil.objectToJsonString(tariff));
+		} catch (IOException e) {
+			return (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(tariff));
+		}
+	}
+	
+	public Commission copy(Commission commission) {
+		try {
+			return StringUtil.jsonStringToObject(Commission.class, StringUtil.objectToJsonString(commission));
+		} catch (IOException e) {
+			return (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
+		}
+	}
 	
 	public Price calculateResource(Price price, User user, Currency currency) {
 		return calculateResource(price, user, currency, null);
@@ -58,7 +84,7 @@ public class Calculator {
 		// итоговый тариф
 		Tariff tariff = null;
 		if (price.getTariff() != null) {
-			tariff = (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(price.getTariff()));
+			tariff = copy(price.getTariff());
 		} else {
 			tariff = new Tariff();
 		}
@@ -215,12 +241,12 @@ public class Calculator {
 	}
 	
 	private Commission toCurr(Commission commission, BigDecimal value, BigDecimal rate) {
-		Commission resultCommission = (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
+		Commission resultCommission = copy(commission);
 		resultCommission.setType(ValueType.FIXED);
 		resultCommission.setValue(value.multiply(rate).setScale(2, RoundingMode.HALF_UP));
 		setCommissionVat(resultCommission);
-		if (commission.getVat() != null) {
-			commission.setVat(commission.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+		if (resultCommission.getVat() != null) {
+			resultCommission.setVat(commission.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
 		}
 		return resultCommission;
 	}
@@ -273,7 +299,7 @@ public class Calculator {
 		ReturnCondition tariffCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
 		
 		// расчитываем возврат тарифа
-		Tariff tariff = (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(price.getTariff()));
+		Tariff tariff = copy(price.getTariff());
 		tariff.setValue(calcReturn(tariffCondition, tariff.getValue(), rate));
 		tariff.setVat(calcReturn(tariffCondition, tariff.getVat(), rate));
 		tariff.setReturnConditions(Collections.singletonList(tariffCondition));
@@ -287,7 +313,7 @@ public class Calculator {
 		List<Commission> commissions = new ArrayList<>(price.getCommissions().size());
 		for (Commission commission : price.getCommissions()) {
 			
-			Commission resultCommission = (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
+			Commission resultCommission = copy(commission);
 			
 			// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
 			if (resultCommission.getId() == null
@@ -326,7 +352,7 @@ public class Calculator {
 			if (resourcePrice.getCommissions() != null) {
 				for (Commission resourceCommission : resourcePrice.getCommissions()) {
 					if (resourceCommission.getValue() != null) {
-						Commission resultCommission = (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(resourceCommission));
+						Commission resultCommission = copy(resourceCommission);
 						resultCommission.setValue(resultCommission.getValue().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
 						if (resultCommission.getVat() != null) {
 							resultCommission.setVat(resultCommission.getVat().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
@@ -381,7 +407,7 @@ public class Calculator {
 			// берем с тарифа стоимость и условие возврата
 			// нужно принять во внимание то, что может присутствовать стоимость без условия и условие без стоимости
 			if (resourcePrice.getTariff() != null) {
-				Tariff resourceTariff = (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(resourcePrice.getTariff()));
+				Tariff resourceTariff = copy(resourcePrice.getTariff());
 				
 				// если есть тариф, то используем его
 				if (resourceTariff.getValue() != null) {
