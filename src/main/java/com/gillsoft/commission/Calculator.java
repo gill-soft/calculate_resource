@@ -602,11 +602,7 @@ public class Calculator {
 		if (returnConditionOptional.isPresent()) {
 			return returnConditionOptional.get();
 		} else {
-			ReturnCondition returnCondition = returnConditions.get(returnConditions.size() - 1);
-			if (minutesBeforeDepart < 0 && returnCondition.getMinutesBeforeDepart() >= 0) {
-				return null;
-			}
-			return returnCondition;
+			return null;
 		}
 	}
 	
