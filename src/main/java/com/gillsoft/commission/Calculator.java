@@ -261,6 +261,88 @@ public class Calculator {
 		}
 		// в других случаях ндс без изменений
 	}
+	
+	private boolean isIndividual(Price price) {
+		return price != null
+				&& price.isIndividual();
+	}
+	
+	private BigDecimal applyRate(BigDecimal value, BigDecimal rate) {
+		if (value == null) {
+			return BigDecimal.ZERO;
+		}
+		if (rate == null) {
+			return value;
+		}
+		return value.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+	}
+	
+	/**
+	 * Возврат по индивидуальному условию. Какая сумма к возврату получена - ту
+	 * и устанавливаем минуя все расчеты.
+	 * 
+	 * @param resourcePrice
+	 * @param currency
+	 * @param rates
+	 * @return
+	 */
+	private Price calculateIndividualReturn(Price resourcePrice, Currency currency, Map<String, Map<String, BigDecimal>> rates) {
+		
+		// переводим полученные суммы в указанную валюту
+		BigDecimal rate = BigDecimal.ONE;//getCoeffRate(rates, resourcePrice.getCurrency(), currency);
+
+		// новая стоимость
+		Price result = new Price();
+		result.setCurrency(currency);
+		result.setAmount(applyRate(resourcePrice.getAmount(), rate));
+		result.setVat(applyRate(resourcePrice.getVat(), rate));
+		
+		// расчитываем возврат тарифа
+		if (resourcePrice.getTariff() != null) {
+			
+		}
+		Tariff tariff = copy(resourcePrice.getTariff());
+		tariff.setValue(applyRate(tariff.getValue(), rate));
+		tariff.setVat(applyRate(tariff.getVat(), rate));
+		if (resourcePrice.getTariff().getReturnConditions() != null
+				&& !resourcePrice.getTariff().getReturnConditions().isEmpty()) {
+			tariff.setReturnConditions(Collections.singletonList(resourcePrice.getTariff().getReturnConditions().get(0)));
+		}
+		result.setTariff(tariff);
+		
+		// сумма возврата комиссий поверх
+		BigDecimal amount = tariff.getValue();
+		BigDecimal vat = tariff.getVat();
+		List<Commission> commissions = new ArrayList<>();
+		if (resourcePrice.getCommissions() != null) {
+			for (Commission commission : resourcePrice.getCommissions()) {
+				
+				Commission resultCommission = copy(commission);
+				
+				// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
+				if (resultCommission.getValueCalcType() == CalcType.OUT) {
+					if (commission.getReturnConditions() != null
+							&& !commission.getReturnConditions().isEmpty()) {
+						resultCommission.setReturnConditions(Collections.singletonList(commission.getReturnConditions().get(0)));
+					}
+					resultCommission.setValue(applyRate(resultCommission.getValue(), rate));
+					resultCommission.setVat(applyRate(resultCommission.getVat(), rate));
+					amount = amount.add(resultCommission.getValue());
+					vat = vat.add(resultCommission.getVat());
+					commissions.add(resultCommission);
+				}
+			}
+		}
+		result.setCommissions(commissions);
+		if (tariff.getValue().compareTo(BigDecimal.ZERO) > 0) {
+			result.setAmount(amount);
+			result.setVat(vat);
+		} else {
+			tariff.setValue(result.getAmount().subtract(amount));
+			tariff.setVat(result.getVat().subtract(vat));
+		}
+		return result;
+	}
 
 	/**
 	 * 
@@ -285,7 +367,9 @@ public class Calculator {
 	public Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency,
 			Date currentDate, Date departureDate) {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
-		
+		if (isIndividual(resourcePrice)) {
+			return calculateIndividualReturn(resourcePrice, currency, rates);
+		}
 		// получаем время до даты отправления
 		int minutesBeforeDepart = (int) ((departureDate.getTime() - currentDate.getTime()) / 60000);
 		
@@ -436,7 +520,7 @@ public class Calculator {
 				result.getTariff().setVat(result.getVat().subtract(overAllCommissionsVat));
 			}
 		}
-		// очищаем повторяющиеся условия возврат
+		// очищаем повторяющиеся условия возврата
 		if (result.getTariff().getReturnConditions() != null) {
 			for (ReturnCondition condition : result.getTariff().getReturnConditions()) {
 				for (Commission commission : result.getCommissions()) {
