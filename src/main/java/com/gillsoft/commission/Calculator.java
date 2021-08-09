@@ -310,35 +310,37 @@ public class Calculator {
 		BigDecimal vat = tariff.getVat();
 		
 		// возврат для комиссий
-		List<Commission> commissions = new ArrayList<>(price.getCommissions().size());
-		for (Commission commission : price.getCommissions()) {
-			
-			Commission resultCommission = copy(commission);
-			
-			// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
-			if (resultCommission.getId() == null
-					&& (resultCommission.getValueCalcType() == CalcType.IN
-							|| resultCommission.getValueCalcType() == CalcType.FROM)) {
-				resultCommission.setValue(BigDecimal.ZERO);
-				resultCommission.setVat(BigDecimal.ZERO);
-			} else {
-				ReturnCondition commissionCondition = getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
-						commission.getId() != null);
-				if (commissionCondition == null) {
-					commissionCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
+		List<Commission> commissions = new ArrayList<>();
+		if (price.getCommissions() != null) {
+			for (Commission commission : price.getCommissions()) {
+				
+				Commission resultCommission = copy(commission);
+				
+				// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
+				if (resultCommission.getId() == null
+						&& (resultCommission.getValueCalcType() == CalcType.IN
+								|| resultCommission.getValueCalcType() == CalcType.FROM)) {
+					resultCommission.setValue(BigDecimal.ZERO);
+					resultCommission.setVat(BigDecimal.ZERO);
+				} else {
+					ReturnCondition commissionCondition = getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
 							commission.getId() != null);
+					if (commissionCondition == null) {
+						commissionCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
+								commission.getId() != null);
+					}
+					resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
+					resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
+					if (commissionCondition != null) {
+						resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
+					}
+					if (resultCommission.getValueCalcType() == CalcType.OUT) {
+						amount = amount.add(resultCommission.getValue());
+						vat = vat.add(resultCommission.getVat());
+					}
 				}
-				resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
-				resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
-				if (commissionCondition != null) {
-					resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
-				}
-				if (resultCommission.getValueCalcType() == CalcType.OUT) {
-					amount = amount.add(resultCommission.getValue());
-					vat = vat.add(resultCommission.getVat());
-				}
+				commissions.add(resultCommission);
 			}
-			commissions.add(resultCommission);
 		}
 		result.setCommissions(commissions);
 		result.setAmount(amount);
