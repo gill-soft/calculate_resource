@@ -176,11 +176,14 @@ public class Calculator {
 		// переводим в валюту
 		tariff.setValue(tariff.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
 		tariff.setVat(tariff.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+		tariff.setVatCalcType(CalcType.IN);
+		tariff.setCurrency(currency);
 		
 		// итоговая стоимость
 		Price result = new Price();
 		result.setAmount(tariff.getValue().add(commissionOut));
 		result.setVat(tariff.getVat().add(commissionOutVat));
+		result.setVatCalcType(CalcType.IN);
 		result.setCurrency(currency);
 		result.setTariff(tariff);
 		result.setCommissions(commissions);
@@ -258,6 +261,7 @@ public class Calculator {
 						&& commission.getVat() != null
 						&& commission.getType() == ValueType.PERCENT)) {
 			commission.setVat(commission.getValue().multiply(commission.getVat()).divide(new BigDecimal(100).add(commission.getVat()), 2, RoundingMode.HALF_UP));
+			commission.setVatCalcType(CalcType.IN);
 		}
 		// в других случаях ндс без изменений
 	}
@@ -296,14 +300,17 @@ public class Calculator {
 		result.setCurrency(currency);
 		result.setAmount(applyRate(resourcePrice.getAmount(), rate));
 		result.setVat(applyRate(resourcePrice.getVat(), rate));
+		result.setVatCalcType(CalcType.IN);
 		
 		// расчитываем возврат тарифа
 		if (resourcePrice.getTariff() != null) {
 			
 		}
 		Tariff tariff = copy(resourcePrice.getTariff());
+		tariff.setCurrency(currency);
 		tariff.setValue(applyRate(tariff.getValue(), rate));
 		tariff.setVat(applyRate(tariff.getVat(), rate));
+		tariff.setVatCalcType(CalcType.IN);
 		if (resourcePrice.getTariff().getReturnConditions() != null
 				&& !resourcePrice.getTariff().getReturnConditions().isEmpty()) {
 			tariff.setReturnConditions(Collections.singletonList(resourcePrice.getTariff().getReturnConditions().get(0)));
@@ -327,6 +334,7 @@ public class Calculator {
 					}
 					resultCommission.setValue(applyRate(resultCommission.getValue(), rate));
 					resultCommission.setVat(applyRate(resultCommission.getVat(), rate));
+					resultCommission.setVatCalcType(CalcType.IN);
 					amount = amount.add(resultCommission.getValue());
 					vat = vat.add(resultCommission.getVat());
 					commissions.add(resultCommission);
@@ -386,6 +394,8 @@ public class Calculator {
 		Tariff tariff = copy(price.getTariff());
 		tariff.setValue(calcReturn(tariffCondition, tariff.getValue(), rate));
 		tariff.setVat(calcReturn(tariffCondition, tariff.getVat(), rate));
+		tariff.setVatCalcType(CalcType.IN);
+		tariff.setCurrency(currency);
 		tariff.setReturnConditions(Collections.singletonList(tariffCondition));
 		result.setTariff(tariff);
 		
@@ -415,6 +425,7 @@ public class Calculator {
 					}
 					resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
 					resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
+					resultCommission.setVatCalcType(CalcType.IN);
 					if (commissionCondition != null) {
 						resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
 					}
@@ -429,6 +440,7 @@ public class Calculator {
 		result.setCommissions(commissions);
 		result.setAmount(amount);
 		result.setVat(vat);
+		result.setVatCalcType(CalcType.IN);
 		
 		// проверяем данные от ресурса
 		if (resourcePrice != null) {
