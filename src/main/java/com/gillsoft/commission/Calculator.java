@@ -693,10 +693,17 @@ public class Calculator {
 			return null;
 		}
 		// сортируем условия по времени (минуты) до даты отправления от большего к меньшему
-		returnConditions.sort((returnCondition1, returnCondition2) -> returnCondition2
-				.getMinutesBeforeDepart().compareTo(returnCondition1.getMinutesBeforeDepart()));
+		returnConditions.sort((returnCondition1, returnCondition2) -> {
+			if (returnCondition2.getMinutesBeforeDepart() == null) {
+				return 1;
+			}
+			if (returnCondition1.getMinutesBeforeDepart() == null) {
+				return -1;
+			}
+			return returnCondition2.getMinutesBeforeDepart().compareTo(returnCondition1.getMinutesBeforeDepart());
+		});
 		Optional<ReturnCondition> returnConditionOptional = returnConditions.stream()
-				.filter(rc -> minutesBeforeDepart >= rc.getMinutesBeforeDepart()).findFirst();
+				.filter(rc -> rc.getMinutesBeforeDepart() == null || minutesBeforeDepart >= rc.getMinutesBeforeDepart()).findFirst();
 		if (returnConditionOptional.isPresent()) {
 			return returnConditionOptional.get();
 		} else {
