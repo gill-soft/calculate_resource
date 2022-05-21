@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.gillsoft</groupId>
 	<artifactId>calculate</artifactId>
-	<version>0.0.1</version>
+	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -14,26 +14,35 @@
 
 	<repositories>
 		<repository>
-			<id>gds-repository</id>
-			<name>Repository of gds libruaries</name>
-			<url>https://github.com/gill-soft/gds/raw/repository</url>
+			<id>gillsoft</id>
+			<name>Repository of gds libraries</name>
+			<url>https://maven.pkg.github.com/gill-soft/repository</url>
 		</repository>
 	</repositories>
+	
+	<distributionManagement>
+		<repository>
+			<id>gillsoft</id>
+			<name>Repository of gds libraries</name>
+			<url>https://maven.pkg.github.com/gill-soft/repository</url>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</distributionManagement>
 
 	<dependencies>
 
 		<dependency>
 			<groupId>com.gillsoft</groupId>
 			<artifactId>gds-commons</artifactId>
-			<version>1.0.0</version>
-			<scope>compile</scope>
+			<version>1.0.0-SNAPSHOT</version>
 		</dependency>
 		
 		<dependency>
 			<groupId>com.gillsoft</groupId>
 			<artifactId>ms-gds-commons</artifactId>
-			<version>0.0.1</version>
-			<scope>compile</scope>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
