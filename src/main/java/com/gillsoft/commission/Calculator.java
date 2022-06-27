@@ -213,9 +213,10 @@ public class Calculator {
 		// переводим в валюту частичную оплату
 		if (price.getPartialPayment() != null) {
 			PricePart partialPayment = copy(price.getPartialPayment());
-			partialPayment.setValue(partialPayment.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+			BigDecimal partialRate = getRate(rates, rate, currency, price.getCurrency(), partialPayment.getCurrency());
+			partialPayment.setValue(partialPayment.getValue().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
 			if (partialPayment.getVat() != null) {
-				partialPayment.setVat(partialPayment.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+				partialPayment.setVat(partialPayment.getVat().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
 			}
 			partialPayment.setCurrency(currency);
 			result.setPartialPayment(partialPayment);
