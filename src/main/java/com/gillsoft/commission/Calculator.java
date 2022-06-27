@@ -29,6 +29,7 @@ import com.gillsoft.model.Commission;
 import com.gillsoft.model.Currency;
 import com.gillsoft.model.Discount;
 import com.gillsoft.model.Price;
+import com.gillsoft.model.PricePart;
 import com.gillsoft.model.ReturnCondition;
 import com.gillsoft.model.Tariff;
 import com.gillsoft.model.ValueType;
@@ -68,6 +69,14 @@ public class Calculator {
 			return StringUtil.jsonStringToObject(Commission.class, StringUtil.objectToJsonString(commission));
 		} catch (IOException e) {
 			return (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
+		}
+	}
+	
+	public PricePart copy(PricePart pricePart) {
+		try {
+			return StringUtil.jsonStringToObject(PricePart.class, StringUtil.objectToJsonString(pricePart));
+		} catch (IOException e) {
+			return (PricePart) SerializationUtils.deserialize(SerializationUtils.serialize(pricePart));
 		}
 	}
 	
@@ -200,6 +209,16 @@ public class Calculator {
 		}
 		if (!discounts.isEmpty()) {
 			result.setDiscounts(discounts);
+		}
+		// переводим в валюту частичную оплату
+		if (price.getPartialPayment() != null) {
+			PricePart partialPayment = copy(price.getPartialPayment());
+			partialPayment.setValue(partialPayment.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+			if (partialPayment.getVat() != null) {
+				partialPayment.setVat(partialPayment.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+			}
+			partialPayment.setCurrency(currency);
+			result.setPartialPayment(partialPayment);
 		}
 		return result;
 	}
