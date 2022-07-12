@@ -113,7 +113,7 @@ public class Calculator {
 		
 		// выделяем чистый тариф
 		// считаем, что от ресурса получены все составляющие в одной валюте
-		BigDecimal clearTariff = tariff.getValue();
+		BigDecimal clearTariffValue = tariff.getValue();
 		List<Commission> commissions = new ArrayList<>();
 		
 		if (price.getCommissions() != null) {
@@ -130,7 +130,7 @@ public class Calculator {
 						if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
 							Commission inTariffCurr = toCurr(commission, commission.getValue(),
 									getRate(rates, rate, price.getCurrency(), price.getCurrency(), commission.getCurrency()));
-							clearTariff = clearTariff.subtract(inTariffCurr.getValue());
+							clearTariffValue = clearTariffValue.subtract(inTariffCurr.getValue());
 						}
 						addCommission(commissions, commission,
 								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
@@ -146,13 +146,13 @@ public class Calculator {
 			}
 			// отрицательные комиссии в очистке не учитываем
 			// вычитываем процентные значения
-			BigDecimal percentTariff = clearTariff;
+			BigDecimal percentTariff = clearTariffValue;
 			for (Commission commission : price.getCommissions()) {
 				if (commission.getValueCalcType() == CalcType.IN
 						&& commission.getType() == ValueType.PERCENT) {
 					BigDecimal value = percentTariff.multiply(commission.getValue()).divide(commPercents, 2, RoundingMode.HALF_UP);
 					if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
-						clearTariff = clearTariff.subtract(value);
+						clearTariffValue = clearTariffValue.subtract(value);
 					}
 					addCommission(commissions, commission, value,
 							getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
@@ -169,7 +169,7 @@ public class Calculator {
 						
 					// процент считаем от чистого тарифа
 					} else if (commission.getType() == ValueType.PERCENT) {
-						BigDecimal value = clearTariff.multiply(commission.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
+						BigDecimal value = clearTariffValue.multiply(commission.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
 						result = addCommission(commissions, commission, value,
 								getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
 					}
@@ -188,6 +188,13 @@ public class Calculator {
 		tariff.setVatCalcType(CalcType.IN);
 		tariff.setCurrency(currency);
 		
+		// чистый тариф
+		Tariff clearTariff = new Tariff();
+		clearTariff.setValue(clearTariffValue.multiply(rate).setScale(2, RoundingMode.HALF_UP));
+		clearTariff.setVat(tariff.getVat());
+		clearTariff.setVatCalcType(CalcType.IN);
+		clearTariff.setCurrency(currency);
+		
 		// итоговая стоимость
 		Price result = new Price();
 		result.setAmount(tariff.getValue().add(commissionOut));
@@ -195,6 +202,7 @@ public class Calculator {
 		result.setVatCalcType(CalcType.IN);
 		result.setCurrency(currency);
 		result.setTariff(tariff);
+		result.setClearTariff(clearTariff);
 		result.setCommissions(commissions);
 		
 		// выделяем скидки и проставляем валюту комиссиям
@@ -313,7 +321,7 @@ public class Calculator {
 	private Price calculateIndividualReturn(Price resourcePrice, Currency currency, Map<String, Map<String, BigDecimal>> rates) {
 		
 		// переводим полученные суммы в указанную валюту
-		BigDecimal rate = BigDecimal.ONE;//getCoeffRate(rates, resourcePrice.getCurrency(), currency);
+		BigDecimal rate = getCoeffRate(rates, resourcePrice.getCurrency(), currency);
 
 		// новая стоимость
 		Price result = new Price();
