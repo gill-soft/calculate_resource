@@ -130,7 +130,7 @@ public class Calculator {
 	
 	private List<Commission> getAfterMarkup(Price price) {
 		return price.getCommissions() == null ? null :
-				price.getCommissions().stream().filter(c -> isCommissionBeforeMarkup(c)).collect(Collectors.toList());
+				price.getCommissions().stream().filter(c -> !isCommissionBeforeMarkup(c)).collect(Collectors.toList());
 	}
 	
 	private boolean isCommissionBeforeMarkup(Commission commission) {
