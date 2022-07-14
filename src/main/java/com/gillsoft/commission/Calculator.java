@@ -1,29 +1,22 @@
 package com.gillsoft.commission;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
-import org.springframework.util.SerializationUtils;
 
 import com.gillsoft.client.CoupleRate;
-import com.gillsoft.client.RestClient;
 import com.gillsoft.model.CalcType;
 import com.gillsoft.model.Commission;
 import com.gillsoft.model.Currency;
@@ -32,52 +25,30 @@ import com.gillsoft.model.Price;
 import com.gillsoft.model.PricePart;
 import com.gillsoft.model.ReturnCondition;
 import com.gillsoft.model.Tariff;
-import com.gillsoft.model.ValueType;
-import com.gillsoft.ms.entity.BaseEntity;
 import com.gillsoft.ms.entity.TariffMarkup;
 import com.gillsoft.ms.entity.User;
-import com.gillsoft.util.StringUtil;
 
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class Calculator {
-
-	@Autowired
-	@Qualifier("CalculateRestClient")
-	private RestClient client;
-
-	private static final String DEFAULT_ORGANIZATION = "0";
 	
+	@Autowired
+	private RateService rateService;
+
 	public Price copy(Price price) {
-		try {
-			return StringUtil.jsonStringToObject(Price.class, StringUtil.objectToJsonString(price));
-		} catch (IOException e) {
-			return (Price) SerializationUtils.deserialize(SerializationUtils.serialize(price));
-		}
+		return PriceUtils.copy(price);
 	}
 	
 	public Tariff copy(Tariff tariff) {
-		try {
-			return StringUtil.jsonStringToObject(Tariff.class, StringUtil.objectToJsonString(tariff));
-		} catch (IOException e) {
-			return (Tariff) SerializationUtils.deserialize(SerializationUtils.serialize(tariff));
-		}
+		return PriceUtils.copy(tariff);
 	}
 	
 	public Commission copy(Commission commission) {
-		try {
-			return StringUtil.jsonStringToObject(Commission.class, StringUtil.objectToJsonString(commission));
-		} catch (IOException e) {
-			return (Commission) SerializationUtils.deserialize(SerializationUtils.serialize(commission));
-		}
+		return PriceUtils.copy(commission);
 	}
 	
 	public PricePart copy(PricePart pricePart) {
-		try {
-			return StringUtil.jsonStringToObject(PricePart.class, StringUtil.objectToJsonString(pricePart));
-		} catch (IOException e) {
-			return (PricePart) SerializationUtils.deserialize(SerializationUtils.serialize(pricePart));
-		}
+		return PriceUtils.copy(pricePart);
 	}
 	
 	public Price calculateResource(Price price, User user, Currency currency) {
@@ -104,110 +75,30 @@ public class Calculator {
 		if (tariff.getVat() == null) {
 			tariff.setVat(BigDecimal.ZERO);
 		}
+		
+		PriceCalculator calculator = new PriceCalculator();
+		calculator.setCommissions(getBeforeMarkup(price));
+		calculator.setCurrency(currency);
+		calculator.setPriceCurrency(price.getCurrency());
+		calculator.setRate(rate);
+		calculator.setRates(rates);
+		calculator.setRateService(rateService);
+		calculator.setTariff(tariff);
+		Price clearPrice = calculator.create();
+		
 		// добавляем к тарифу надбавки
 		tariff.setValue(applyMarkups(rates, tariff.getValue(), price.getCurrency(), tariffMarkups));
 		
-		// сумма комиссий поверх
-		BigDecimal commissionOut = BigDecimal.ZERO;
-		BigDecimal commissionOutVat = BigDecimal.ZERO;
-		
-		// выделяем чистый тариф
-		// считаем, что от ресурса получены все составляющие в одной валюте
-		BigDecimal clearTariffValue = tariff.getValue();
-		List<Commission> commissions = new ArrayList<>();
-		
-		if (price.getCommissions() != null) {
-			
-			// очищаем от сборов внутри тарифа
-			// отрицательные комиссии в очистке не учитываем
-			// вычитаем фиксированные значения и считаем проценты
-			BigDecimal commPercents = new BigDecimal(100);
-			for (Commission commission : price.getCommissions()) {
-				if (commission.getValueCalcType() == CalcType.IN) {
-					if (commission.getType() == ValueType.FIXED) {
-						
-						// переводим вычитаемую комиссию в валюту тарифа
-						if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
-							Commission inTariffCurr = toCurr(commission, commission.getValue(),
-									getRate(rates, rate, price.getCurrency(), price.getCurrency(), commission.getCurrency()));
-							clearTariffValue = clearTariffValue.subtract(inTariffCurr.getValue());
-						}
-						addCommission(commissions, commission,
-								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
-					} else if (commission.getType() == ValueType.PERCENT
-							&& commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
-						commPercents = commPercents.add(commission.getValue());
-					}
-				}
-				// все отрицательные комиссии (скидки) считаем как OUT
-				if (commission.getValue().compareTo(BigDecimal.ZERO) < 0) {
-					commission.setValueCalcType(CalcType.OUT);
-				}
-			}
-			// отрицательные комиссии в очистке не учитываем
-			// вычитываем процентные значения
-			BigDecimal percentTariff = clearTariffValue;
-			for (Commission commission : price.getCommissions()) {
-				if (commission.getValueCalcType() == CalcType.IN
-						&& commission.getType() == ValueType.PERCENT) {
-					BigDecimal value = percentTariff.multiply(commission.getValue()).divide(commPercents, 2, RoundingMode.HALF_UP);
-					if (commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
-						clearTariffValue = clearTariffValue.subtract(value);
-					}
-					addCommission(commissions, commission, value,
-							getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
-				}
-			}
-			// считаем сборы OUT и FROM
-			for (Commission commission : price.getCommissions()) {
-				if (commission.getValueCalcType() == CalcType.OUT
-						|| commission.getValueCalcType() == CalcType.FROM) {
-					Commission result = null;
-					if (commission.getType() == ValueType.FIXED) {
-						result = addCommission(commissions, commission,
-								getRate(rates, rate, currency, price.getCurrency(), commission.getCurrency()));
-						
-					// процент считаем от чистого тарифа
-					} else if (commission.getType() == ValueType.PERCENT) {
-						BigDecimal value = clearTariffValue.multiply(commission.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
-						result = addCommission(commissions, commission, value,
-								getRate(rates, rate, currency, price.getCurrency(), price.getCurrency()));
-					}
-					if (result != null 
-							&& commission.getValueCalcType() == CalcType.OUT
-							&& commission.getValue().compareTo(BigDecimal.ZERO) > 0) {
-						commissionOut = commissionOut.add(result.getValue());
-						commissionOutVat = commissionOutVat.add(result.getVat());
-					}
-				}
-			}
-		}
-		// переводим в валюту
-		tariff.setValue(tariff.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		tariff.setVat(tariff.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		tariff.setVatCalcType(CalcType.IN);
-		tariff.setCurrency(currency);
-		
-		// чистый тариф
-		Tariff clearTariff = new Tariff();
-		clearTariff.setValue(clearTariffValue.multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		clearTariff.setVat(tariff.getVat());
-		clearTariff.setVatCalcType(CalcType.IN);
-		clearTariff.setCurrency(currency);
+		calculator.setCommissions(getAfterMarkup(price));
+		calculator.setTariff(tariff);
 		
 		// итоговая стоимость
-		Price result = new Price();
-		result.setAmount(tariff.getValue().add(commissionOut));
-		result.setVat(tariff.getVat().add(commissionOutVat));
-		result.setVatCalcType(CalcType.IN);
-		result.setCurrency(currency);
-		result.setTariff(tariff);
-		result.setClearTariff(clearTariff);
-		result.setCommissions(commissions);
+		Price result = calculator.create();
+		result.setClearPrice(clearPrice);
 		
 		// выделяем скидки и проставляем валюту комиссиям
 		List<Discount> discounts = new ArrayList<>();
-		for (Iterator<Commission> iterator = commissions.iterator(); iterator.hasNext();) {
+		for (Iterator<Commission> iterator = result.getCommissions().iterator(); iterator.hasNext();) {
 			Commission commission = iterator.next();
 			commission.setCurrency(currency);
 			if (commission.getValue().compareTo(BigDecimal.ZERO) < 0) {
@@ -221,7 +112,7 @@ public class Calculator {
 		// переводим в валюту частичную оплату
 		if (price.getPartialPayment() != null) {
 			PricePart partialPayment = copy(price.getPartialPayment());
-			BigDecimal partialRate = getRate(rates, rate, currency, price.getCurrency(), partialPayment.getCurrency());
+			BigDecimal partialRate = rateService.getRate(rates, rate, currency, price.getCurrency(), partialPayment.getCurrency());
 			partialPayment.setValue(partialPayment.getValue().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
 			if (partialPayment.getVat() != null) {
 				partialPayment.setVat(partialPayment.getVat().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
@@ -230,6 +121,21 @@ public class Calculator {
 			result.setPartialPayment(partialPayment);
 		}
 		return result;
+	}
+	
+	private List<Commission> getBeforeMarkup(Price price) {
+		return price.getCommissions() == null ? null :
+				price.getCommissions().stream().filter(c -> isCommissionBeforeMarkup(c)).collect(Collectors.toList());
+	}
+	
+	private List<Commission> getAfterMarkup(Price price) {
+		return price.getCommissions() == null ? null :
+				price.getCommissions().stream().filter(c -> isCommissionBeforeMarkup(c)).collect(Collectors.toList());
+	}
+	
+	private boolean isCommissionBeforeMarkup(Commission commission) {
+		return commission.getAdditionals() != null
+				&& (Boolean) commission.getAdditionals().get(Commission.APPLY_BEFORE_MARKUP_KEY);
 	}
 	
 	private BigDecimal applyMarkups(Map<String, Map<String, BigDecimal>> rates, BigDecimal tariffValue, Currency tariffCurrency, List<TariffMarkup> tariffMarkups) {
@@ -247,51 +153,6 @@ public class Calculator {
 			}
 		}
 		return tariffValue.add(markupAmount);
-	}
-	
-	/*
-	 * Коэфициент перевода указанной валюты в указанную валюту продажи.
-	 */
-	private BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate,
-			Currency saleCurrency, Currency priceCurrency, Currency commissionCurrency) {
-		if (commissionCurrency == null
-				|| commissionCurrency == priceCurrency) {
-			return rate;
-		}
-		return getCoeffRate(rates, commissionCurrency, saleCurrency);
-	}
-	
-	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal rate) {
-		return addCommission(commissions, commission, commission.getValue(), rate);
-	}
-	
-	private Commission addCommission(List<Commission> commissions, Commission commission, BigDecimal value, BigDecimal rate) {
-		Commission resultCommission = toCurr(commission, value, rate);
-		commissions.add(resultCommission);
-		return resultCommission;
-	}
-	
-	private Commission toCurr(Commission commission, BigDecimal value, BigDecimal rate) {
-		Commission resultCommission = copy(commission);
-		resultCommission.setType(ValueType.FIXED);
-		resultCommission.setValue(value.multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		setCommissionVat(resultCommission);
-		if (resultCommission.getVat() != null) {
-			resultCommission.setVat(commission.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		}
-		return resultCommission;
-	}
-	
-	private void setCommissionVat(Commission commission) {
-		if ((commission.getId() != null // считаем, что для собственного ресурса ндс в %
-				&& commission.getVat() != null)
-				|| (commission.getId() == null // для сборов ресурса считаем НДС как % только где сама комиссия как %
-						&& commission.getVat() != null
-						&& commission.getType() == ValueType.PERCENT)) {
-			commission.setVat(commission.getValue().multiply(commission.getVat()).divide(new BigDecimal(100).add(commission.getVat()), 2, RoundingMode.HALF_UP));
-			commission.setVatCalcType(CalcType.IN);
-		}
-		// в других случаях ндс без изменений
 	}
 	
 	private boolean isIndividual(Price price) {
@@ -416,7 +277,7 @@ public class Calculator {
 		// сперва расчитываем возврат для стоимости не учитывая данные от ресурса
 		// получаем актуальные условия возврата и курс валют
 		BigDecimal rate = getCoeffRate(rates, price.getCurrency(), currency);
-		ReturnCondition tariffCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
+		ReturnCondition tariffCondition = ReturnConditionsUtils.getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
 		
 		// расчитываем возврат тарифа
 		Tariff tariff = copy(price.getTariff());
@@ -445,10 +306,10 @@ public class Calculator {
 					resultCommission.setValue(BigDecimal.ZERO);
 					resultCommission.setVat(BigDecimal.ZERO);
 				} else {
-					ReturnCondition commissionCondition = getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
+					ReturnCondition commissionCondition = ReturnConditionsUtils.getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
 							commission.getId() != null);
 					if (commissionCondition == null) {
-						commissionCondition = getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
+						commissionCondition = ReturnConditionsUtils.getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
 								commission.getId() != null);
 					}
 					resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
@@ -483,7 +344,7 @@ public class Calculator {
 						if (resultCommission.getVat() != null) {
 							resultCommission.setVat(resultCommission.getVat().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
 						}
-						resultCommission.setReturnConditions(getActualConditionList(resultCommission.getReturnConditions(), minutesBeforeDepart, false));
+						resultCommission.setReturnConditions(ReturnConditionsUtils.getActualConditionList(resultCommission.getReturnConditions(), minutesBeforeDepart, false));
 						
 						// находим эту комиссию в просчитанных данных и обновляем
 						for (Commission commission : result.getCommissions()) {
@@ -551,7 +412,7 @@ public class Calculator {
 						&& price.getTariff().getVat() != null) {
 					resourceTariff.setVat(calcVat(price.getTariff().getVat(), price.getTariff().getValue(), resourceTariff.getValue()));
 				}
-				resourceTariff.setReturnConditions(getActualConditionList(resourceTariff.getReturnConditions(), minutesBeforeDepart, false));
+				resourceTariff.setReturnConditions(ReturnConditionsUtils.getActualConditionList(resourceTariff.getReturnConditions(), minutesBeforeDepart, false));
 				result.setTariff(resourceTariff);
 			
 			// если нет тарифа от ресурса, но была стоимость
@@ -601,142 +462,20 @@ public class Calculator {
 		}
 	}
 	
-	private List<ReturnCondition> getActualConditionList(List<ReturnCondition> conditions,
-			int minutesBeforeDepart, boolean applyOnlyOwn) {
-		if (conditions != null
-				&& conditions.size() > 1) {
-			ReturnCondition condition = getActualReturnCondition(conditions, minutesBeforeDepart, applyOnlyOwn);
-			return condition != null ? Collections.singletonList(condition) : null;
-		} else {
-			return conditions;
-		}
-	}
-	
-	public Map<String, Map<String, BigDecimal>> getRates(User user) {
-		Map<String, Map<String, CoupleRate>> couples = getCouples(user);
-		return convertToRatesMap(couples);
-	}
-	
-	public Map<String, Map<String, CoupleRate>> getCouples(User user) {
-		Map<String, Map<String, CoupleRate>> couples = new HashMap<>();
-		BaseEntity parent = user.getParents() != null && !user.getParents().isEmpty() ? user.getParents().iterator().next() : null;
-		fillRates(parent, couples);
-		return couples;
-	}
-	
-	private Map<String, Map<String, BigDecimal>> convertToRatesMap(Map<String, Map<String, CoupleRate>> couples) {
-		return couples.entrySet().stream().collect(Collectors.toMap(Entry::getKey,
-				v -> v.getValue().entrySet().stream().collect(Collectors.toMap(Entry::getKey, c -> c.getValue().getRate()))));
-	}
-	
-	private void fillRates(BaseEntity parent, Map<String, Map<String, CoupleRate>> rates) {
-		if (parent != null && parent.getParents() != null && !parent.getParents().isEmpty()) {
-			fillRates(parent.getParents().iterator().next(), rates);
-		}
-		try {
-			Map<String, Map<String, CoupleRate>> parentRates = client.getCachedRates(parent != null ? String.valueOf(parent.getId()) : DEFAULT_ORGANIZATION);
-			if (parentRates != null && !parentRates.isEmpty()) {
-				parentRates.forEach((key, value) -> {
-					Map<String, CoupleRate> keyRates = rates.get(key);
-					if (keyRates == null) {
-						rates.put(key, value);
-					} else {
-						keyRates.putAll(value);
-					}
-				});
-			}
-		} catch (Exception e) {
-			
-		}
-	}
-
 	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
-		if (Objects.equals(currencyFrom, currencyTo)) {
-			return BigDecimal.ONE;
-		}
-		Map<String, BigDecimal> curFromRates = rates.get(String.valueOf(currencyFrom));
-		if (curFromRates != null && !curFromRates.isEmpty()) {
-			BigDecimal curToRate = curFromRates.get(String.valueOf(currencyTo));
-			if (curToRate != null) {
-				return curToRate;
-			}
-		}
-		// если не нашли курс у организации - ищем общий (organizationId = DEFAULT_ORGANIZATION)
-		if (!rates.containsKey(DEFAULT_ORGANIZATION)) {
-			try {
-				Map<String, Map<String, BigDecimal>> rates0 = convertToRatesMap(client.getCachedRates(DEFAULT_ORGANIZATION));
-				rates0.put(DEFAULT_ORGANIZATION, null);
-				return getCoeffRate(rates0, currencyFrom, currencyTo);
-			} catch (Exception e) { }
-		}
-		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
+		return rateService.getCoeffRate(rates, currencyFrom, currencyTo);
 	}
 	
 	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws LinkageError {
-		if (Objects.equals(currencyFrom, currencyTo)) {
-			return BigDecimal.ONE;
-		}
-		Map<String, CoupleRate> curFromRates = rates.get(String.valueOf(currencyFrom));
-		if (curFromRates != null && !curFromRates.isEmpty()) {
-			CoupleRate curToRate = curFromRates.get(String.valueOf(currencyTo));
-			if (curToRate != null) {
-				return client.getCachedCoupleRate(curToRate.getId(), date);
-			}
-		}
-		// если не нашли курс у организации - ищем общий (organizationId = DEFAULT_ORGANIZATION)
-		if (!rates.containsKey(DEFAULT_ORGANIZATION)) {
-			try {
-				Map<String, Map<String, CoupleRate>> rates0 = client.getCachedRates(DEFAULT_ORGANIZATION);
-				rates0.put(DEFAULT_ORGANIZATION, null);
-				return getCoupleDateCoeffRate(rates0, date, currencyFrom, currencyTo);
-			} catch (Exception e) { }
-		}
-		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
-	}
-
-	private ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
-			int minutesBeforeDepart, boolean applyOnlyOwn) {
-		if (returnConditions == null
-				|| returnConditions.isEmpty()) {
-			return null;
-		}
-		// собственные условия возврата
-		List<ReturnCondition> ownConditions = returnConditions.stream()
-				.filter(rc -> rc.getId() != null).collect(Collectors.toList());
-		if (applyOnlyOwn) {
-			return getActualReturnCondition(ownConditions, minutesBeforeDepart);
-		}
-		// по умолчанию собственным условиям возврата приоритет
-		ReturnCondition ownCondition = getActualReturnCondition(ownConditions, minutesBeforeDepart);
-		if (ownCondition != null) {
-			return ownCondition;
-		}
-		return getActualReturnCondition(returnConditions, minutesBeforeDepart);
+		return rateService.getCoupleDateCoeffRate(rates, date, currencyFrom, currencyTo);
 	}
 	
-	private ReturnCondition getActualReturnCondition(List<ReturnCondition> returnConditions,
-			int minutesBeforeDepart) {
-		if (returnConditions == null
-				|| returnConditions.isEmpty()) {
-			return null;
-		}
-		// сортируем условия по времени (минуты) до даты отправления от большего к меньшему
-		returnConditions.sort((returnCondition1, returnCondition2) -> {
-			if (returnCondition2.getMinutesBeforeDepart() == null) {
-				return 1;
-			}
-			if (returnCondition1.getMinutesBeforeDepart() == null) {
-				return -1;
-			}
-			return returnCondition2.getMinutesBeforeDepart().compareTo(returnCondition1.getMinutesBeforeDepart());
-		});
-		Optional<ReturnCondition> returnConditionOptional = returnConditions.stream()
-				.filter(rc -> rc.getMinutesBeforeDepart() == null || minutesBeforeDepart >= rc.getMinutesBeforeDepart()).findFirst();
-		if (returnConditionOptional.isPresent()) {
-			return returnConditionOptional.get();
-		} else {
-			return null;
-		}
+	public Map<String, Map<String, BigDecimal>> getRates(User user) {
+		return rateService.getRates(user);
+	}
+	
+	public Map<String, Map<String, CoupleRate>> getCouples(User user) {
+		return rateService.getCouples(user);
 	}
 	
 }
