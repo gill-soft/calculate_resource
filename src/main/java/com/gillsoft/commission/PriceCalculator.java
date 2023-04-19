@@ -52,7 +52,7 @@ public class PriceCalculator {
 		this.rateService = rateService;
 	}
 
-	public Price create() {
+	public Price create() throws InvalidCurrencyPairException {
 		
 		// сумма комиссий поверх
 		BigDecimal commissionOut = BigDecimal.ZERO;

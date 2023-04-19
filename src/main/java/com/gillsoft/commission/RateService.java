@@ -27,7 +27,7 @@ public class RateService {
 
 	private static final String DEFAULT_ORGANIZATION = "0";
 	
-	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws InvalidCurrencyPairException {
 		if (Objects.equals(currencyFrom, currencyTo)) {
 			return BigDecimal.ONE;
 		}
@@ -46,10 +46,10 @@ public class RateService {
 				return getCoeffRate(rates0, currencyFrom, currencyTo);
 			} catch (Exception e) { }
 		}
-		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
+		throw new InvalidCurrencyPairException("No rate found for " + currencyFrom + '-' + currencyTo);
 	}
 	
-	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws InvalidCurrencyPairException {
 		if (Objects.equals(currencyFrom, currencyTo)) {
 			return BigDecimal.ONE;
 		}
@@ -68,7 +68,7 @@ public class RateService {
 				return getCoupleDateCoeffRate(rates0, date, currencyFrom, currencyTo);
 			} catch (Exception e) { }
 		}
-		throw new LinkageError("No rate found for " + currencyFrom + '-' + currencyTo);
+		throw new InvalidCurrencyPairException("No rate found for " + currencyFrom + '-' + currencyTo);
 	}
 	
 	public Map<String, Map<String, BigDecimal>> getRates(User user) {
@@ -112,8 +112,8 @@ public class RateService {
 	/*
 	 * Коэфициент перевода указанной валюты в указанную валюту продажи.
 	 */
-	public BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate,
-			Currency saleCurrency, Currency priceCurrency, Currency commissionCurrency) {
+	public BigDecimal getRate(Map<String, Map<String, BigDecimal>> rates, BigDecimal rate, Currency saleCurrency,
+			Currency priceCurrency, Currency commissionCurrency) throws InvalidCurrencyPairException {
 		if (commissionCurrency == null
 				|| commissionCurrency == priceCurrency) {
 			return rate;

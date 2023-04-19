@@ -51,11 +51,11 @@ public class Calculator {
 		return PriceUtils.copy(pricePart);
 	}
 	
-	public Price calculateResource(Price price, User user, Currency currency) {
+	public Price calculateResource(Price price, User user, Currency currency) throws InvalidCurrencyPairException {
 		return calculateResource(price, user, currency, null);
 	}
 
-	public Price calculateResource(Price price, User user, Currency currency, List<TariffMarkup> tariffMarkups) {
+	public Price calculateResource(Price price, User user, Currency currency, List<TariffMarkup> tariffMarkups) throws InvalidCurrencyPairException {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		
 		// коэфициент перевода стоимости в валюту продажи
@@ -138,7 +138,7 @@ public class Calculator {
 				&& (Boolean) commission.getAdditionals().get(Commission.APPLY_BEFORE_MARKUP_KEY);
 	}
 	
-	private BigDecimal applyMarkups(Map<String, Map<String, BigDecimal>> rates, BigDecimal tariffValue, Currency tariffCurrency, List<TariffMarkup> tariffMarkups) {
+	private BigDecimal applyMarkups(Map<String, Map<String, BigDecimal>> rates, BigDecimal tariffValue, Currency tariffCurrency, List<TariffMarkup> tariffMarkups) throws InvalidCurrencyPairException {
 		if (tariffMarkups == null
 				|| tariffMarkups.isEmpty()) {
 			return tariffValue;
@@ -178,8 +178,9 @@ public class Calculator {
 	 * @param currency
 	 * @param rates
 	 * @return
+	 * @throws InvalidCurrencyPairException 
 	 */
-	private Price calculateIndividualReturn(Price resourcePrice, Currency currency, Map<String, Map<String, BigDecimal>> rates) {
+	private Price calculateIndividualReturn(Price resourcePrice, Currency currency, Map<String, Map<String, BigDecimal>> rates) throws InvalidCurrencyPairException {
 		
 		// переводим полученные суммы в указанную валюту
 		BigDecimal rate = getCoeffRate(rates, resourcePrice.getCurrency(), currency);
@@ -260,9 +261,10 @@ public class Calculator {
 			    в amount - сумму к возврату
 			    в tariff - сумму к возврату от тарифа и условие, по которому выполнен возврат
 			    в commissions - суммы возврата и условие, по которому выполнен возврат, по каждой комиссии
+	 * @throws InvalidCurrencyPairException 
 	 */
 	public Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency,
-			Date currentDate, Date departureDate) {
+			Date currentDate, Date departureDate) throws InvalidCurrencyPairException {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		if (isIndividual(resourcePrice)) {
 			return calculateIndividualReturn(resourcePrice, currency, rates);
@@ -462,11 +464,11 @@ public class Calculator {
 		}
 	}
 	
-	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public BigDecimal getCoeffRate(Map<String, Map<String, BigDecimal>> rates, Currency currencyFrom, Currency currencyTo) throws InvalidCurrencyPairException {
 		return rateService.getCoeffRate(rates, currencyFrom, currencyTo);
 	}
 	
-	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws LinkageError {
+	public BigDecimal getCoupleDateCoeffRate(Map<String, Map<String, CoupleRate>> rates, Date date, Currency currencyFrom, Currency currencyTo) throws InvalidCurrencyPairException {
 		return rateService.getCoupleDateCoeffRate(rates, date, currencyFrom, currencyTo);
 	}
 	
