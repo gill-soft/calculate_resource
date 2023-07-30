@@ -62,19 +62,7 @@ public class Calculator {
 		BigDecimal rate = getCoeffRate(rates, price.getCurrency(), currency);
 		
 		// итоговый тариф
-		Tariff tariff = null;
-		if (price.getTariff() != null) {
-			tariff = copy(price.getTariff());
-		} else {
-			tariff = new Tariff();
-		}
-		if (tariff.getValue() == null) {
-			tariff.setValue(price.getAmount());
-			tariff.setVat(price.getVat());
-		}
-		if (tariff.getVat() == null) {
-			tariff.setVat(BigDecimal.ZERO);
-		}
+		Tariff tariff = createTariff(price);
 		
 		PriceCalculator calculator = new PriceCalculator();
 		calculator.setCommissions(getBeforeMarkup(price));
@@ -113,14 +101,31 @@ public class Calculator {
 		if (price.getPartialPayment() != null) {
 			PricePart partialPayment = copy(price.getPartialPayment());
 			BigDecimal partialRate = rateService.getRate(rates, rate, currency, price.getCurrency(), partialPayment.getCurrency());
-			partialPayment.setValue(partialPayment.getValue().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
+			partialPayment.setValue(applyRate(partialPayment.getValue(), partialRate));
 			if (partialPayment.getVat() != null) {
-				partialPayment.setVat(partialPayment.getVat().multiply(partialRate).setScale(2, RoundingMode.HALF_UP));
+				partialPayment.setVat(applyRate(partialPayment.getVat(), partialRate));
 			}
 			partialPayment.setCurrency(currency);
 			result.setPartialPayment(partialPayment);
 		}
 		return result;
+	}
+	
+	private Tariff createTariff(Price price) {
+		Tariff tariff = null;
+		if (price.getTariff() != null) {
+			tariff = copy(price.getTariff());
+		} else {
+			tariff = new Tariff();
+		}
+		if (tariff.getValue() == null) {
+			tariff.setValue(price.getAmount());
+			tariff.setVat(price.getVat());
+		}
+		if (tariff.getVat() == null) {
+			tariff.setVat(BigDecimal.ZERO);
+		}
+		return tariff;
 	}
 	
 	private List<Commission> getBeforeMarkup(Price price) {
@@ -149,7 +154,7 @@ public class Calculator {
 				markupAmount = markupAmount.add(tariffValue.multiply(tariffMarkup.getValue()).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP));
 			} else {
 				BigDecimal rate = getCoeffRate(rates, Currency.valueOf(tariffMarkup.getCurrency().name()), tariffCurrency);
-				markupAmount = markupAmount.add(tariffMarkup.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+				markupAmount = markupAmount.add(applyRate(tariffMarkup.getValue(), rate));
 			}
 		}
 		return tariffValue.add(markupAmount);
@@ -160,7 +165,7 @@ public class Calculator {
 				&& price.isIndividual();
 	}
 	
-	private BigDecimal applyRate(BigDecimal value, BigDecimal rate) {
+	public static BigDecimal applyRate(BigDecimal value, BigDecimal rate) {
 		if (value == null) {
 			return BigDecimal.ZERO;
 		}
@@ -193,10 +198,7 @@ public class Calculator {
 		result.setVatCalcType(CalcType.IN);
 		
 		// расчитываем возврат тарифа
-		if (resourcePrice.getTariff() != null) {
-			
-		}
-		Tariff tariff = copy(resourcePrice.getTariff());
+		Tariff tariff = createTariff(resourcePrice);
 		tariff.setCurrency(currency);
 		tariff.setValue(applyRate(tariff.getValue(), rate));
 		tariff.setVat(applyRate(tariff.getVat(), rate));
@@ -239,6 +241,7 @@ public class Calculator {
 			tariff.setValue(result.getAmount().subtract(amount));
 			tariff.setVat(result.getVat().subtract(vat));
 		}
+		result.setClearPrice(copy(result));
 		return result;
 	}
 
@@ -269,6 +272,14 @@ public class Calculator {
 		if (isIndividual(resourcePrice)) {
 			return calculateIndividualReturn(resourcePrice, currency, rates);
 		}
+		Price result = calculateReturn(price, resourcePrice, user, currency, currentDate, departureDate, rates);
+		result.setClearPrice(calculateReturn(price.getClearPrice(), resourcePrice, user, currency, currentDate, departureDate, rates));
+		return result;
+	}
+	
+	private Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency, Date currentDate,
+			Date departureDate, Map<String, Map<String, BigDecimal>> rates) throws InvalidCurrencyPairException {
+		
 		// получаем время до даты отправления
 		int minutesBeforeDepart = (int) ((departureDate.getTime() - currentDate.getTime()) / 60000);
 		
@@ -342,9 +353,9 @@ public class Calculator {
 				for (Commission resourceCommission : resourcePrice.getCommissions()) {
 					if (resourceCommission.getValue() != null) {
 						Commission resultCommission = copy(resourceCommission);
-						resultCommission.setValue(resultCommission.getValue().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
+						resultCommission.setValue(applyRate(resultCommission.getValue(), resourceRate));
 						if (resultCommission.getVat() != null) {
-							resultCommission.setVat(resultCommission.getVat().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
+							resultCommission.setVat(applyRate(resultCommission.getVat(), resourceRate));
 						}
 						resultCommission.setReturnConditions(ReturnConditionsUtils.getActualConditionList(resultCommission.getReturnConditions(), minutesBeforeDepart, false));
 						
@@ -383,9 +394,9 @@ public class Calculator {
 			}
 			// если ресурс вернул стоимость возврата
 			if (resourcePrice.getAmount() != null) {
-				result.setAmount(resourcePrice.getAmount().multiply(resourceRate).add(overOwnCommissions).setScale(2, RoundingMode.HALF_UP));
+				result.setAmount(applyRate(resourcePrice.getAmount(), resourceRate).add(overOwnCommissions).setScale(2, RoundingMode.HALF_UP));
 				if (resourcePrice.getVat() != null) {
-					result.setVat(resourcePrice.getVat().multiply(resourceRate).add(overOwnCommissionsVat).setScale(2, RoundingMode.HALF_UP));
+					result.setVat(applyRate(resourcePrice.getVat(), resourceRate).add(overOwnCommissionsVat).setScale(2, RoundingMode.HALF_UP));
 					
 				// если ндс нет, то берем пропорционально от данных продажи
 				} else if (price.getVat() != null) {
@@ -400,14 +411,14 @@ public class Calculator {
 				
 				// если есть тариф, то используем его
 				if (resourceTariff.getValue() != null) {
-					resourceTariff.setValue(resourceTariff.getValue().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
+					resourceTariff.setValue(applyRate(resourceTariff.getValue(), resourceRate));
 					
 				// если нет величины, то берем стоимость минус сборы поверх
 				} else {
 					resourceTariff.setValue(result.getAmount().subtract(overAllCommissions));
 				}
 				if (resourceTariff.getVat() != null) {
-					resourceTariff.setVat(resourceTariff.getVat().multiply(resourceRate).setScale(2, RoundingMode.HALF_UP));
+					resourceTariff.setVat(applyRate(resourceTariff.getVat(), resourceRate));
 					
 				// если ндс нет и есть тариф, то берем пропорционально от данных продажи
 				} else if (resourceTariff.getValue() != null
@@ -460,7 +471,7 @@ public class Calculator {
 				|| value.compareTo(BigDecimal.ZERO) == 0) {
 			return BigDecimal.ZERO;
 		} else {
-			return value.multiply(condition.getReturnPercent().multiply(new BigDecimal(0.01))).multiply(rate).setScale(2, RoundingMode.HALF_UP);
+			return applyRate(value.multiply(condition.getReturnPercent().multiply(new BigDecimal(0.01))), rate);
 		}
 	}
 	

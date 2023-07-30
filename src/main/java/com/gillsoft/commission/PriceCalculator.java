@@ -130,8 +130,8 @@ public class PriceCalculator {
 			}
 		}
 		// переводим в валюту
-		tariff.setValue(tariff.getValue().multiply(rate).setScale(2, RoundingMode.HALF_UP));
-		tariff.setVat(tariff.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+		tariff.setValue(Calculator.applyRate(tariff.getValue(), rate));
+		tariff.setVat(Calculator.applyRate(tariff.getVat(),rate));
 		tariff.setVatCalcType(CalcType.IN);
 		tariff.setCurrency(currency);
 		
@@ -160,10 +160,10 @@ public class PriceCalculator {
 	private Commission toCurr(Commission commission, BigDecimal value, BigDecimal rate) {
 		Commission resultCommission = PriceUtils.copy(commission);
 		resultCommission.setType(ValueType.FIXED);
-		resultCommission.setValue(value.multiply(rate).setScale(2, RoundingMode.HALF_UP));
+		resultCommission.setValue(Calculator.applyRate(value, rate));
 		setCommissionVat(resultCommission);
 		if (resultCommission.getVat() != null) {
-			resultCommission.setVat(commission.getVat().multiply(rate).setScale(2, RoundingMode.HALF_UP));
+			resultCommission.setVat(Calculator.applyRate(commission.getVat(), rate));
 		}
 		return resultCommission;
 	}
