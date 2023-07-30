@@ -298,7 +298,9 @@ public class Calculator {
 		tariff.setVat(calcReturn(tariffCondition, tariff.getVat(), rate));
 		tariff.setVatCalcType(CalcType.IN);
 		tariff.setCurrency(currency);
-		tariff.setReturnConditions(Collections.singletonList(tariffCondition));
+		if (tariffCondition != null) {
+			tariff.setReturnConditions(Collections.singletonList(tariffCondition));
+		}
 		result.setTariff(tariff);
 		
 		// сумма возврата комиссий поверх
@@ -321,10 +323,6 @@ public class Calculator {
 				} else {
 					ReturnCondition commissionCondition = ReturnConditionsUtils.getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
 							commission.getId() != null);
-					if (commissionCondition == null) {
-						commissionCondition = ReturnConditionsUtils.getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart,
-								commission.getId() != null);
-					}
 					resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
 					resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
 					resultCommission.setVatCalcType(CalcType.IN);
