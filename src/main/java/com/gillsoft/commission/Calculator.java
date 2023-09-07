@@ -276,6 +276,10 @@ public class Calculator {
 		return result;
 	}
 	
+	private Tariff getTariff(Price price) {
+		return price.getClearPrice() != null ? price.getClearPrice().getTariff() : price.getTariff();
+	}
+	
 	private Price calculateReturn(Price price, Price resourcePrice, User user, Currency currency, Date currentDate,
 			Date departureDate, Map<String, Map<String, BigDecimal>> rates) throws InvalidCurrencyPairException {
 		
@@ -292,7 +296,7 @@ public class Calculator {
 		ReturnCondition tariffCondition = ReturnConditionsUtils.getActualReturnCondition(price.getTariff().getReturnConditions(), minutesBeforeDepart, false);
 		
 		// расчитываем возврат тарифа
-		Tariff tariff = copy(price.getTariff());
+		Tariff tariff = copy(getTariff(price));
 		tariff.setValue(calcReturn(tariffCondition, tariff.getValue(), rate));
 		tariff.setVat(calcReturn(tariffCondition, tariff.getVat(), rate));
 		tariff.setVatCalcType(CalcType.IN);
@@ -409,8 +413,8 @@ public class Calculator {
 					
 				// если ндс нет и есть тариф, то берем пропорционально от данных продажи
 				} else if (resourceTariff.getValue() != null
-						&& price.getTariff().getVat() != null) {
-					resourceTariff.setVat(calcVat(price.getTariff().getVat(), price.getTariff().getValue(), resourceTariff.getValue()));
+						&& getTariff(price).getVat() != null) {
+					resourceTariff.setVat(calcVat(getTariff(price).getVat(), getTariff(price).getValue(), resourceTariff.getValue()));
 				}
 				resourceTariff.setReturnConditions(ReturnConditionsUtils.getActualConditionList(resourceTariff.getReturnConditions(), minutesBeforeDepart, false));
 				result.setTariff(resourceTariff);
@@ -452,7 +456,7 @@ public class Calculator {
 			// calculate return percent
 			BigDecimal returnPercent = result.getTariff().getValue()
 					.multiply(new BigDecimal(100))
-					.divide(price.getClearPrice().getTariff().getValue(), 0, RoundingMode.CEILING)
+					.divide(getTariff(price).getValue(), 0, RoundingMode.CEILING)
 					.multiply(new BigDecimal("0.01"));
 			for (Commission resultCommission : result.getCommissions()) {
 				for (Commission commission : price.getCommissions()) {
