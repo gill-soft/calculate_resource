@@ -442,7 +442,7 @@ public class Calculator {
 			}
 		}
 		// commissions inside tariff returns by tariff return condition
-		updateInsideCommissionReturnedValue(result, resourcePrice);
+		updateInsideCommissionReturnedValue(result, price);
 		return result;
 	}
 	
