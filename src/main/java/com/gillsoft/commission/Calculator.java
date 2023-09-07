@@ -215,22 +215,19 @@ public class Calculator {
 		List<Commission> commissions = new ArrayList<>();
 		if (resourcePrice.getCommissions() != null) {
 			for (Commission commission : resourcePrice.getCommissions()) {
-				
 				Commission resultCommission = copy(commission);
-				
-				// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
+				if (commission.getReturnConditions() != null
+						&& !commission.getReturnConditions().isEmpty()) {
+					resultCommission.setReturnConditions(Collections.singletonList(commission.getReturnConditions().get(0)));
+				}
+				resultCommission.setValue(applyRate(resultCommission.getValue(), rate));
+				resultCommission.setVat(applyRate(resultCommission.getVat(), rate));
+				resultCommission.setVatCalcType(CalcType.IN);
 				if (resultCommission.getValueCalcType() == CalcType.OUT) {
-					if (commission.getReturnConditions() != null
-							&& !commission.getReturnConditions().isEmpty()) {
-						resultCommission.setReturnConditions(Collections.singletonList(commission.getReturnConditions().get(0)));
-					}
-					resultCommission.setValue(applyRate(resultCommission.getValue(), rate));
-					resultCommission.setVat(applyRate(resultCommission.getVat(), rate));
-					resultCommission.setVatCalcType(CalcType.IN);
 					amount = amount.add(resultCommission.getValue());
 					vat = vat.add(resultCommission.getVat());
-					commissions.add(resultCommission);
 				}
+				commissions.add(resultCommission);
 			}
 		}
 		result.setCommissions(commissions);
@@ -241,6 +238,8 @@ public class Calculator {
 			tariff.setValue(result.getAmount().subtract(amount));
 			tariff.setVat(result.getVat().subtract(vat));
 		}
+		// commissions inside tariff returns by tariff return condition
+		updateInsideCommissionReturnedValue(result, resourcePrice);
 		result.setClearPrice(copy(result));
 		return result;
 	}
@@ -311,28 +310,18 @@ public class Calculator {
 		List<Commission> commissions = new ArrayList<>();
 		if (price.getCommissions() != null) {
 			for (Commission commission : price.getCommissions()) {
-				
 				Commission resultCommission = copy(commission);
-				
-				// по сборам ресурса, которые внутри тарифа считаем, что они удерживаются 100%
-				if (resultCommission.getId() == null
-						&& (resultCommission.getValueCalcType() == CalcType.IN
-								|| resultCommission.getValueCalcType() == CalcType.FROM)) {
-					resultCommission.setValue(BigDecimal.ZERO);
-					resultCommission.setVat(BigDecimal.ZERO);
-				} else {
-					ReturnCondition commissionCondition = ReturnConditionsUtils.getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
-							commission.getId() != null);
-					resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
-					resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
-					resultCommission.setVatCalcType(CalcType.IN);
-					if (commissionCondition != null) {
-						resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
-					}
-					if (resultCommission.getValueCalcType() == CalcType.OUT) {
-						amount = amount.add(resultCommission.getValue());
-						vat = vat.add(resultCommission.getVat());
-					}
+				ReturnCondition commissionCondition = ReturnConditionsUtils.getActualReturnCondition(commission.getReturnConditions(), minutesBeforeDepart,
+						commission.getId() != null);
+				resultCommission.setValue(calcReturn(commissionCondition, resultCommission.getValue(), rate));
+				resultCommission.setVat(calcReturn(commissionCondition, resultCommission.getVat(), rate));
+				resultCommission.setVatCalcType(CalcType.IN);
+				if (commissionCondition != null) {
+					resultCommission.setReturnConditions(Collections.singletonList(commissionCondition));
+				}
+				if (resultCommission.getValueCalcType() == CalcType.OUT) {
+					amount = amount.add(resultCommission.getValue());
+					vat = vat.add(resultCommission.getVat());
 				}
 				commissions.add(resultCommission);
 			}
@@ -452,7 +441,33 @@ public class Calculator {
 				result.setAmount(BigDecimal.ZERO);
 			}
 		}
+		// commissions inside tariff returns by tariff return condition
+		updateInsideCommissionReturnedValue(result, resourcePrice);
 		return result;
+	}
+	
+	private void updateInsideCommissionReturnedValue(Price result, Price price) {
+		if (price.getCommissions() != null) {
+			
+			// calculate return percent
+			BigDecimal returnPercent = result.getTariff().getValue()
+					.multiply(new BigDecimal(100))
+					.divide(price.getClearPrice().getTariff().getValue(), 0, RoundingMode.CEILING)
+					.multiply(new BigDecimal("0.01"));
+			for (Commission resultCommission : result.getCommissions()) {
+				for (Commission commission : price.getCommissions()) {
+					if (commission.getId() != null
+							&& commission.getId().equals(resultCommission.getId())
+							&& (commission.getValueCalcType() == CalcType.IN
+									|| commission.getValueCalcType() == CalcType.FROM)) {
+						resultCommission.setValue(commission.getValue().multiply(returnPercent).setScale(2, RoundingMode.HALF_UP));
+						if (commission.getVat() != null) {
+							resultCommission.setVat(commission.getVat().multiply(returnPercent).setScale(2, RoundingMode.HALF_UP));
+						}
+					}
+				}
+			}
+		}
 	}
 	
 	private BigDecimal calcVat(BigDecimal vat1, BigDecimal value1, BigDecimal value2) {
