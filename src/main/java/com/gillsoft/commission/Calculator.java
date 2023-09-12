@@ -160,6 +160,11 @@ public class Calculator {
 		return tariffValue.add(markupAmount);
 	}
 	
+	private boolean isIndividual(Price price) {
+		return price != null
+				&& price.isIndividual();
+	}
+	
 	public static BigDecimal applyRate(BigDecimal value, BigDecimal rate) {
 		if (value == null) {
 			return BigDecimal.ZERO;
@@ -371,7 +376,9 @@ public class Calculator {
 			}
 		}
 		// commissions inside tariff returns by tariff return condition
-		updateInsideCommissionReturnedValue(result, price);
+		if (!isIndividual(resourcePrice)) {
+			updateInsideCommissionReturnedValue(result, price);
+		}
 		return result;
 	}
 	
