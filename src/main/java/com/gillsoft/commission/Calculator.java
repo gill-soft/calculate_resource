@@ -201,7 +201,7 @@ public class Calculator {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		Price result = calculateReturn(price, resourcePrice, user, currency, currentDate, departureDate, rates);
 		result.setClearPrice(calculateReturn(price.getClearPrice(),
-				resourcePrice.getClearPrice() == null ? resourcePrice : resourcePrice.getClearPrice(),
+				resourcePrice == null || resourcePrice.getClearPrice() == null ? resourcePrice : resourcePrice.getClearPrice(),
 				user, currency, currentDate, departureDate, rates));
 		return result;
 	}
