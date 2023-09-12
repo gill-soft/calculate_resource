@@ -240,7 +240,6 @@ public class Calculator {
 		}
 		// commissions inside tariff returns by tariff return condition
 		updateInsideCommissionReturnedValue(result, resourcePrice);
-		result.setClearPrice(copy(result));
 		return result;
 	}
 
@@ -269,7 +268,13 @@ public class Calculator {
 			Date currentDate, Date departureDate) throws InvalidCurrencyPairException {
 		Map<String, Map<String, BigDecimal>> rates = getRates(user);
 		if (isIndividual(resourcePrice)) {
-			return calculateIndividualReturn(resourcePrice, currency, rates);
+			Price result = calculateIndividualReturn(resourcePrice, currency, rates);
+			if (resourcePrice.getClearPrice() == null) {
+				result.setClearPrice(copy(result));
+			} else {
+				result.setClearPrice(calculateReturn(price.getClearPrice(), resourcePrice, user, currency, currentDate, departureDate, rates));
+			}
+			return result;
 		}
 		Price result = calculateReturn(price, resourcePrice, user, currency, currentDate, departureDate, rates);
 		result.setClearPrice(calculateReturn(price.getClearPrice(), resourcePrice, user, currency, currentDate, departureDate, rates));
